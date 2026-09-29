@@ -20,13 +20,44 @@
   padding-bottom:env(safe-area-inset-bottom,0px);
 }
 @media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
+  :root:not([data-theme="light"]):not([data-theme="sun"]){
     --paper:#141A26; --card:#1D2536; --ink:#E6EAF2; --muted:#9AA3B8; --line:#343E54;
     --grass:#35553A; --grass2:#2E4B33; --dirt:#6E5638; --chalk:#E8E8E8; --active:#3A3320;
     --ball:#7FA4E6; --strike:#F0677D;
     --p1:#7FA4E6; --p2:#F0677D; --p3:#5FC48F; --p4:#F0B63F; --p5:#B39BE3;
   }
 }
+:root[data-theme="dark"]{
+    --paper:#141A26; --card:#1D2536; --ink:#E6EAF2; --muted:#9AA3B8; --line:#343E54;
+    --grass:#35553A; --grass2:#2E4B33; --dirt:#6E5638; --chalk:#E8E8E8; --active:#3A3320;
+    --ball:#7FA4E6; --strike:#F0677D;
+    --p1:#7FA4E6; --p2:#F0677D; --p3:#5FC48F; --p4:#F0B63F; --p5:#B39BE3;
+}
+/* Sun: maximum contrast for bright daylight */
+:root[data-theme="sun"]{
+  --paper:#FFFFFF; --card:#FFFFFF; --ink:#000000; --muted:#000000; --line:#000000;
+  --grass:#CFE3C2; --grass2:#C3DBB4; --dirt:#EDD3AA; --chalk:#FFFFFF; --active:#FFE600;
+  --ball:#0030A0; --strike:#B0001E;
+  --p1:#0030A0; --p2:#B0001E; --p3:#006B2A; --p4:#9A4A00; --p5:#50108A;
+}
+[data-theme="sun"] body{font-weight:500}
+[data-theme="sun"] .panel,[data-theme="sun"] .ab,[data-theme="sun"] .order button,[data-theme="sun"] .navbtn,
+[data-theme="sun"] .ghost,[data-theme="sun"] .marktype button,[data-theme="sun"] .abtop input,
+[data-theme="sun"] .notes textarea,[data-theme="sun"] .lu input,[data-theme="sun"] .lu select,[data-theme="sun"] .set input{border-width:2px}
+[data-theme="sun"] .ab.on{border-width:3px}
+[data-theme="sun"] .box{border-width:2px;font-size:24px;font-weight:700;background:#FFFFFF}
+[data-theme="sun"] .row.b .box.f,[data-theme="sun"] .row.s .box.f{border-width:3px}
+[data-theme="sun"] .box sup{font-size:10px;font-weight:700}
+[data-theme="sun"] .abtop input{font-size:18px;font-weight:700}
+[data-theme="sun"] .hint,[data-theme="sun"] .abfoot,[data-theme="sun"] .batter .who p{font-weight:600}
+[data-theme="sun"] .row .lab{font-size:21px}
+[data-theme="sun"] #field .mk rect,[data-theme="sun"] #field .mk circle,[data-theme="sun"] #field .mk polygon{stroke-width:2.6}
+[data-theme="sun"] #field .mk.on rect,[data-theme="sun"] #field .mk.on circle,[data-theme="sun"] #field .mk.on polygon{stroke-width:4}
+[data-theme="sun"] #field .mk text{font-size:12px}
+[data-theme="sun"] #field line{stroke:#FFFFFF;stroke-width:3}
+[data-theme="sun"] .iconbtn{color:#000;font-weight:600}
+#sunBtn{border:2px solid var(--ink);border-radius:8px;background:transparent;padding:6px 10px;font-family:var(--head);font-weight:600;font-size:17px;white-space:nowrap}
+#sunBtn[aria-pressed="true"]{background:var(--active);color:#000}
 *,*::before,*::after{box-sizing:border-box}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.4}
@@ -57,8 +88,8 @@ main{max-width:1100px;margin:0 auto;padding:12px 16px 40px}
 .batter .who p{margin:2px 0 0;color:var(--muted);font-size:14px}
 .navbtn{border:1.5px solid var(--line);background:var(--card);border-radius:6px;padding:8px 12px;font-family:var(--head);font-weight:600;font-size:17px}
 
-.grid{display:grid;grid-template-columns:1fr;gap:16px}
-@media (min-width:900px){.grid{grid-template-columns:1.1fr 1fr;align-items:start}.fieldcol{position:sticky;top:12px}}
+.grid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+@media (min-width:900px){.grid{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);align-items:start}.fieldcol{position:sticky;top:12px}}
 
 .panel{background:var(--card);border:1.5px solid var(--line);border-radius:10px;padding:12px}
 .fieldwrap svg{width:100%;height:auto;display:block;touch-action:manipulation;cursor:crosshair}
@@ -94,6 +125,7 @@ main{max-width:1100px;margin:0 auto;padding:12px 16px 40px}
 .box sup{position:absolute;top:1px;left:3px;font-family:var(--body);font-size:9px;font-weight:500;color:var(--muted);line-height:1}
 .abfoot{display:flex;gap:10px;align-items:center;margin-top:6px;font-size:13px;color:var(--muted)}
 .abfoot .spacer{flex:1}
+.abfoot{flex-wrap:wrap;row-gap:2px}.abfoot > *{white-space:nowrap}
 
 .empty{border:2px dashed var(--line);border-radius:10px;padding:20px;text-align:center;color:var(--muted)}
 .notes textarea{width:100%;min-height:70px;border:1.5px solid var(--line);border-radius:6px;padding:8px;background:var(--card);resize:vertical}
@@ -127,7 +159,7 @@ label.lbl{display:block;font-family:var(--head);font-weight:600;font-size:17px;m
 .picks button span{font-size:12px;opacity:.95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .sheet .btnrow{justify-content:space-between}
 
-@media (max-width:480px){header.top{flex-wrap:wrap}header.top h1{flex:0 0 auto;font-size:24px}#teamSel{flex:1;max-width:none}}
+@media (max-width:480px){header.top{flex-wrap:wrap}header.top h1{flex:0 0 auto;font-size:24px}#teamSel{flex:1;max-width:none}.tabs{flex:1}.tabs button{flex:1}}
 @media print{
   header.top .tabs,.order,.navbtn,.marktype,.primary,.iconbtn,.btnrow{display:none!important}
   body{background:#fff}
@@ -139,6 +171,7 @@ label.lbl{display:block;font-family:var(--head);font-weight:600;font-size:17px;m
 <header class="top">
   <h1 id="title">Spray Chart</h1>
   <select id="teamSel" aria-label="Choose team"></select>
+  <button id="sunBtn" aria-pressed="false" title="High contrast for direct sunlight">☀ Sun</button>
   <div class="tabs" role="tablist">
     <button role="tab" id="tabChart" aria-selected="true">Chart</button>
     <button role="tab" id="tabLineup" aria-selected="false">Lineup</button>
@@ -219,7 +252,7 @@ function fieldSVG(p){
   let marks = '';
   p.abs.forEach((a,i)=>{
     if(!a.mark) return;
-    marks += `<g class="mk" data-ab="${a.id}" style="cursor:pointer">${shape(a.mark.t,a.mark.x,a.mark.y,i+1,isHit(a.result),a.id===T().curAB)}</g>`;
+    marks += `<g class="mk${a.id===T().curAB?' on':''}" data-ab="${a.id}" style="cursor:pointer">${shape(a.mark.t,a.mark.x,a.mark.y,i+1,isHit(a.result),a.id===T().curAB)}</g>`;
   });
   return `<svg id="field" viewBox="0 0 400 312" role="img" aria-label="Baseball field, tap to mark where the ball went">
     <path d="M200,300 L0,100 A283,283 0 0 1 400,100 Z" fill="var(--grass)"/>
@@ -329,7 +362,11 @@ function renderLineup(){
       <div class="btnrow"><button class="primary" id="addP">Add batter</button></div>
     </div>
     <div class="panel" style="margin-top:16px">
-      <label class="lbl" style="margin-top:0">Pitch key</label>
+      <label class="lbl" style="margin-top:0" for="themeSel">Display</label>
+      <select id="themeSel" class="ghost" style="max-width:420px;width:100%">
+        ${[['auto','Match phone setting'],['light','Light'],['dark','Dark'],['sun','Sun: high contrast for daylight']].map(([v,l])=>`<option value="${v}" ${(S.theme||'auto')===v?'selected':''}>${l}</option>`).join('')}
+      </select>
+      <label class="lbl">Pitch key</label>
       <div class="set">${S.pitches.map((n,i)=>`<span class="dot" style="background:${PCOL[i]}">${i+1}</span><input data-pitch="${i}" value="${esc(n)}" aria-label="Pitch ${i+1} name">`).join('')}</div>
       <label class="lbl">Backup</label>
       <p class="hint" style="margin-top:0">Charts save on this device. Export backup saves every team in one file. Importing adds those teams to this device.</p>
@@ -345,7 +382,14 @@ function renderLineup(){
     </div>`;
 }
 
+function applyTheme(){
+  const th = S.theme || 'auto';
+  if(th==='auto') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', th);
+  $('#sunBtn').setAttribute('aria-pressed', th==='sun');
+}
 function render(){
+  applyTheme();
   
   $('#teamSel').innerHTML = S.teams.map((t,i)=>`<option value="${t.id}" ${t.id===S.teamId?'selected':''}>${esc(tName(t,i))}</option>`).join('')
     + `<option value="__new">+ New team</option>`;
@@ -401,6 +445,14 @@ $('#teamSel').onchange = e=>{
   if(e.target.value==='__new') return addTeam();
   S.teamId = e.target.value; save(); render(); scrollTo(0,0);
 };
+$('#sunBtn').onclick = ()=>{
+  if(S.theme==='sun'){ S.theme = S.prevTheme || 'auto'; }
+  else { S.prevTheme = S.theme || 'auto'; S.theme = 'sun'; }
+  save(); applyTheme();
+};
+$('#app').addEventListener('change', e=>{
+  if(e.target.id==='themeSel'){ S.theme = e.target.value; if(S.theme!=='sun') S.prevTheme = S.theme; save(); applyTheme(); }
+});
 $('#tabChart').onclick = ()=>{ S.tab='chart'; save(); render(); };
 $('#tabLineup').onclick = ()=>{ S.tab='lineup'; save(); render(); };
 
