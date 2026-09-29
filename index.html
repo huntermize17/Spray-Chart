@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spray Chart</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F5F6F2; --card:#FFFFFF; --ink:#1D2B4A; --muted:#66708A; --line:#D5D9E0;
+  --grass:#A9C597; --grass2:#98B886; --dirt:#DDBE92; --chalk:#FFFFFF;
+  --ball:#2E5EAA; --strike:#C8102E; --active:#FFF4D6;
+  --p1:#2E5EAA; --p2:#C8102E; --p3:#2F8F5B; --p4:#C98300; --p5:#6B4FA0;
+  --head:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]):not([data-theme="sun"]){
+    --paper:#141A26; --card:#1D2536; --ink:#E6EAF2; --muted:#9AA3B8; --line:#343E54;
+    --grass:#35553A; --grass2:#2E4B33; --dirt:#6E5638; --chalk:#E8E8E8; --active:#3A3320;
+    --ball:#7FA4E6; --strike:#F0677D;
+    --p1:#7FA4E6; --p2:#F0677D; --p3:#5FC48F; --p4:#F0B63F; --p5:#B39BE3;
+  }
+}
+:root[data-theme="dark"]{
+    --paper:#141A26; --card:#1D2536; --ink:#E6EAF2; --muted:#9AA3B8; --line:#343E54;
+    --grass:#35553A; --grass2:#2E4B33; --dirt:#6E5638; --chalk:#E8E8E8; --active:#3A3320;
+    --ball:#7FA4E6; --strike:#F0677D;
+    --p1:#7FA4E6; --p2:#F0677D; --p3:#5FC48F; --p4:#F0B63F; --p5:#B39BE3;
+}
+/* Sun: maximum contrast for bright daylight */
+:root[data-theme="sun"]{
+  --paper:#FFFFFF; --card:#FFFFFF; --ink:#000000; --muted:#000000; --line:#000000;
+  --grass:#CFE3C2; --grass2:#C3DBB4; --dirt:#EDD3AA; --chalk:#FFFFFF; --active:#FFE600;
+  --ball:#0030A0; --strike:#B0001E;
+  --p1:#0030A0; --p2:#B0001E; --p3:#006B2A; --p4:#9A4A00; --p5:#50108A;
+}
+[data-theme="sun"] body{font-weight:500}
+[data-theme="sun"] .panel,[data-theme="sun"] .ab,[data-theme="sun"] .order button,[data-theme="sun"] .navbtn,
+[data-theme="sun"] .ghost,[data-theme="sun"] .marktype button,[data-theme="sun"] .abtop input,
+[data-theme="sun"] .notes textarea,[data-theme="sun"] .lu input,[data-theme="sun"] .lu select,[data-theme="sun"] .set input{border-width:2px}
+[data-theme="sun"] .ab.on{border-width:3px}
+[data-theme="sun"] .box{border-width:2px;font-size:24px;font-weight:700;background:#FFFFFF}
+[data-theme="sun"] .row.b .box.f,[data-theme="sun"] .row.s .box.f{border-width:3px}
+[data-theme="sun"] .box sup{font-size:10px;font-weight:700}
+[data-theme="sun"] .abtop input{font-size:18px;font-weight:700}
+[data-theme="sun"] .hint,[data-theme="sun"] .abfoot,[data-theme="sun"] .batter .who p{font-weight:600}
+[data-theme="sun"] .row .lab{font-size:21px}
+[data-theme="sun"] #field .mk rect,[data-theme="sun"] #field .mk circle,[data-theme="sun"] #field .mk polygon{stroke-width:2.6}
+[data-theme="sun"] #field .mk.on rect,[data-theme="sun"] #field .mk.on circle,[data-theme="sun"] #field .mk.on polygon{stroke-width:4}
+[data-theme="sun"] #field .mk text{font-size:12px}
+[data-theme="sun"] #field line{stroke:#FFFFFF;stroke-width:3}
+[data-theme="sun"] .iconbtn{color:#000;font-weight:600}
+#sunBtn{border:2px solid var(--ink);border-radius:8px;background:transparent;padding:6px 10px;font-family:var(--head);font-weight:600;font-size:17px;white-space:nowrap}
+#sunBtn[aria-pressed="true"]{background:var(--active);color:#000}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.4}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--ball);outline-offset:2px}
+
+header.top{display:flex;align-items:center;gap:12px;padding:12px 16px 0;max-width:1100px;margin:0 auto}
+#teamSel{border:2px solid var(--ink);border-radius:8px;padding:6px 8px;background:var(--card);font-family:var(--head);font-weight:600;font-size:17px;max-width:40vw}
+header.top h1{font-family:var(--head);font-weight:700;font-size:28px;letter-spacing:.5px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tabs{display:flex;border:2px solid var(--ink);border-radius:8px;overflow:hidden}
+.tabs button{border:0;background:transparent;padding:6px 14px;font-family:var(--head);font-weight:600;font-size:18px}
+.tabs button[aria-selected="true"]{background:var(--ink);color:var(--paper)}
+
+main{max-width:1100px;margin:0 auto;padding:12px 16px 40px}
+
+/* batting order strip */
+.order{display:flex;gap:6px;overflow-x:auto;padding:4px 0 10px;scrollbar-width:thin}
+.order button{flex:0 0 auto;border:1.5px solid var(--line);background:var(--card);border-radius:6px;padding:6px 10px;display:flex;gap:6px;align-items:baseline}
+.order button b{font-family:var(--head);font-size:18px}
+.order button span{font-size:14px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.order button.on{border-color:var(--ink);background:var(--ink);color:var(--paper)}
+
+.batter{display:flex;align-items:center;gap:10px;margin:4px 0 12px}
+.batter .num{font-family:var(--head);font-weight:700;font-size:40px;line-height:1;min-width:48px;text-align:center;border:2px solid var(--ink);border-radius:6px;padding:4px 6px}
+.batter .who{flex:1;min-width:0}
+.batter .who h2{font-family:var(--head);font-size:26px;margin:0;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.batter .who p{margin:2px 0 0;color:var(--muted);font-size:14px}
+.navbtn{border:1.5px solid var(--line);background:var(--card);border-radius:6px;padding:8px 12px;font-family:var(--head);font-weight:600;font-size:17px}
+
+.grid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+@media (min-width:900px){.grid{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);align-items:start}.fieldcol{position:sticky;top:12px}}
+
+.panel{background:var(--card);border:1.5px solid var(--line);border-radius:10px;padding:12px}
+.fieldwrap svg{width:100%;height:auto;display:block;touch-action:manipulation;cursor:crosshair}
+.marktype{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center}
+.marktype button{display:flex;align-items:center;gap:6px;border:1.5px solid var(--line);background:transparent;border-radius:6px;padding:6px 10px;font-size:15px}
+.marktype button[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);font-weight:600}
+.marktype svg{width:16px;height:16px}
+.hint{color:var(--muted);font-size:14px;margin:8px 0 0}
+
+.tally{width:100%;border-collapse:collapse;margin-top:12px;font-size:14px}
+.tally th,.tally td{border-top:1px solid var(--line);padding:5px 4px;text-align:center}
+.tally th:first-child,.tally td:first-child{text-align:left}
+.tally thead th{font-family:var(--head);font-size:15px;color:var(--muted);font-weight:600}
+.dot{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:4px;color:#fff;font-weight:600;font-size:13px;margin-right:6px;vertical-align:-4px}
+
+/* at-bats */
+.abhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.abhead h3{font-family:var(--head);font-size:22px;margin:0}
+.primary{border:0;background:var(--ink);color:var(--paper);border-radius:6px;padding:9px 14px;font-family:var(--head);font-weight:600;font-size:18px}
+.ab{border:1.5px solid var(--line);border-radius:8px;padding:8px;margin-bottom:8px;background:var(--card)}
+.ab.on{border-color:var(--ink);background:var(--active)}
+.abtop{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.abno{font-family:var(--head);font-weight:700;font-size:22px;min-width:30px}
+.abtop input{flex:1;min-width:0;border:1.5px solid var(--line);border-radius:6px;padding:6px 8px;background:var(--card);font-weight:600}
+.iconbtn{border:0;background:transparent;color:var(--muted);padding:6px 8px;border-radius:6px;font-size:14px}
+.iconbtn:hover{color:var(--ink);background:var(--line)}
+.row{display:flex;align-items:center;gap:4px;margin-top:4px}
+.row .lab{font-family:var(--head);font-weight:700;width:18px;font-size:18px;text-align:center}
+.row.b .lab{color:var(--ball)} .row.s .lab{color:var(--strike)}
+.boxes{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;flex:1;max-width:340px}
+.box{position:relative;aspect-ratio:1;min-width:0;border:1.5px solid var(--line);border-radius:4px;background:var(--paper);font-family:var(--head);font-weight:700;font-size:20px;padding:0;display:grid;place-items:center}
+.row.b .box.f{border-color:var(--ball)} .row.s .box.f{border-color:var(--strike)}
+.box sup{position:absolute;top:1px;left:3px;font-family:var(--body);font-size:9px;font-weight:500;color:var(--muted);line-height:1}
+.abfoot{display:flex;gap:10px;align-items:center;margin-top:6px;font-size:13px;color:var(--muted)}
+.abfoot .spacer{flex:1}
+.abfoot{flex-wrap:wrap;row-gap:2px}.abfoot > *{white-space:nowrap}
+
+.empty{border:2px dashed var(--line);border-radius:10px;padding:20px;text-align:center;color:var(--muted)}
+.notes textarea{width:100%;min-height:70px;border:1.5px solid var(--line);border-radius:6px;padding:8px;background:var(--card);resize:vertical}
+label.lbl{display:block;font-family:var(--head);font-weight:600;font-size:17px;margin:14px 0 4px}
+
+/* lineup editor */
+.lu{display:grid;grid-template-columns:34px 1fr 64px 64px 64px 64px auto;gap:6px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
+.lu.headrow{border-top:0;font-family:var(--head);font-weight:600;color:var(--muted);font-size:15px}
+.lu input,.lu select,.set input{width:100%;min-width:0;border:1.5px solid var(--line);border-radius:6px;padding:7px 8px;background:var(--card)}
+.lu .ord{font-family:var(--head);font-weight:700;font-size:22px;text-align:center}
+.lu .acts{display:flex}
+@media (max-width:640px){
+  .lu{grid-template-columns:30px 1fr 56px auto;}
+  .lu .opt{display:none}
+  .lu.headrow .opt{display:none}
+}
+.set{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center;max-width:420px}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.ghost{border:1.5px solid var(--line);background:var(--card);border-radius:6px;padding:8px 12px;font-weight:500}
+.danger{color:var(--strike)}
+
+/* pitch picker */
+.sheet{position:fixed;inset:0;background:rgba(10,15,30,.45);display:none;align-items:flex-end;justify-content:center;z-index:10}
+.sheet.open{display:flex}
+.sheet .card{background:var(--card);width:100%;max-width:520px;border-radius:14px 14px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px))}
+@media (min-width:640px){.sheet{align-items:center}.sheet .card{border-radius:14px}}
+.sheet h4{font-family:var(--head);font-size:22px;margin:0 0 12px}
+.picks{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.picks button{border:0;border-radius:8px;padding:12px 4px;color:#fff;display:flex;flex-direction:column;align-items:center;gap:2px}
+.picks button b{font-family:var(--head);font-size:30px;line-height:1}
+.picks button span{font-size:12px;opacity:.95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.sheet .btnrow{justify-content:space-between}
+
+@media (max-width:480px){header.top{flex-wrap:wrap}header.top h1{flex:0 0 auto;font-size:24px}#teamSel{flex:1;max-width:none}.tabs{flex:1}.tabs button{flex:1}}
+@media print{
+  header.top .tabs,.order,.navbtn,.marktype,.primary,.iconbtn,.btnrow{display:none!important}
+  body{background:#fff}
+  .panel,.ab{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1 id="title">Spray Chart</h1>
+  <select id="teamSel" aria-label="Choose team"></select>
+  <button id="sunBtn" aria-pressed="false" title="High contrast for direct sunlight">☀ Sun</button>
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tabChart" aria-selected="true">Chart</button>
+    <button role="tab" id="tabLineup" aria-selected="false">Lineup</button>
+  </div>
+</header>
+<main id="app"></main>
+
+<div class="sheet" id="sheet" aria-hidden="true">
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <h4 id="sheetTitle">Pick the pitch</h4>
+    <div class="picks" id="picks"></div>
+    <div class="btnrow">
+      <button class="ghost danger" id="clearBox">Clear box</button>
+      <button class="ghost" id="closeSheet">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const KEY = 'sprayChart.v1';
+const BOXES = 8;
+const PCOL = ['var(--p1)','var(--p2)','var(--p3)','var(--p4)','var(--p5)'];
+const RESULTS = ['1B','2B','3B','HR','BB','HBP','K','KL','E','FC','SAC','6-3','4-3','5-3','1-3','F7','F8','F9','L6','P4'];
+const uid = () => Math.random().toString(36).slice(2,9);
+
+function blankPlayer(){ return {id:uid(),name:'',num:'',pos:'',bats:'',throws:'',notes:'',abs:[]}; }
+function blankAB(){ return {id:uid(),b:Array(BOXES).fill(null),s:Array(BOXES).fill(null),result:'',mark:null}; }
+function blankTeam(name=''){ return {id:uid(),name,players:Array.from({length:9},blankPlayer),cur:null,curAB:null}; }
+function defaults(){
+  const t = blankTeam();
+  return {pitches:['Fastball','Curve','Slider','Change','Other'],teams:[t],teamId:t.id,markType:'GB',tab:'chart'};
+}
+// older saves held a single lineup; wrap it as one team
+function upgrade(d){
+  if(!d) return defaults();
+  if(Array.isArray(d.teams) && d.teams.length) return {...defaults(), ...d};
+  if(Array.isArray(d.players)){
+    const t = {id:uid(),name:d.team||'',players:d.players,cur:d.cur||null,curAB:d.curAB||null};
+    return {pitches:d.pitches||defaults().pitches,teams:[t],teamId:t.id,markType:d.markType||'GB',tab:d.tab||'chart'};
+  }
+  return defaults();
+}
+let S;
+try{ S = upgrade(JSON.parse(localStorage.getItem(KEY))); }catch(e){ S = defaults(); }
+function T(){
+  let t = S.teams.find(x=>x.id===S.teamId);
+  if(!t){ if(!S.teams.length) S.teams.push(blankTeam()); t = S.teams[0]; S.teamId = t.id; }
+  return t;
+}
+const tName = (t,i) => t.name.trim() || `Team ${i+1}`;
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const player = () => T().players.find(p=>p.id===T().cur) || null;
+const pName = (p,i) => p.name.trim() || `Batter ${i+1}`;
+const isHit = r => /^(1B|2B|3B|HR|H\b|SINGLE|DOUBLE|TRIPLE)/i.test((r||'').trim());
+
+function ensureCur(){
+  if(!T().players.length) T().players.push(blankPlayer());
+  if(!player()) T().cur = T().players[0].id;
+  const p = player();
+  if(!p.abs.find(a=>a.id===T().curAB)) T().curAB = p.abs.length ? p.abs[p.abs.length-1].id : null;
+}
+
+/* ---------- field ---------- */
+function shape(t, x, y, n, filled, active){
+  const stroke = 'var(--ink)', fill = filled ? 'var(--ink)' : 'var(--card)', txt = filled ? 'var(--card)' : 'var(--ink)';
+  const sw = active ? 3 : 1.6;
+  let s = '';
+  if(t==='GB') s = `<rect x="${x-10}" y="${y-10}" width="20" height="20" rx="2" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
+  else if(t==='FB') s = `<circle cx="${x}" cy="${y}" r="11" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
+  else s = `<polygon points="${x},${y-13} ${x+12},${y+9} ${x-12},${y+9}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+  const ty = t==='LD' ? y+6 : y+4;
+  return s + `<text x="${x}" y="${ty}" text-anchor="middle" font-family="Barlow Condensed,Arial Narrow,sans-serif" font-weight="700" font-size="${t==='LD'?10:11}" fill="${txt}">${n}</text>`;
+}
+function fieldSVG(p){
+  let marks = '';
+  p.abs.forEach((a,i)=>{
+    if(!a.mark) return;
+    marks += `<g class="mk${a.id===T().curAB?' on':''}" data-ab="${a.id}" style="cursor:pointer">${shape(a.mark.t,a.mark.x,a.mark.y,i+1,isHit(a.result),a.id===T().curAB)}</g>`;
+  });
+  return `<svg id="field" viewBox="0 0 400 312" role="img" aria-label="Baseball field, tap to mark where the ball went">
+    <path d="M200,300 L0,100 A283,283 0 0 1 400,100 Z" fill="var(--grass)"/>
+    <path d="M200,300 L14,114 A263,263 0 0 1 386,114 Z" fill="var(--grass2)" opacity=".5"/>
+    <path d="M200,300 L108,208 A130,130 0 0 1 292,208 Z" fill="var(--dirt)"/>
+    <polygon points="200,286 243,243 200,203 157,243" fill="var(--grass)"/>
+    <circle cx="200" cy="247" r="8" fill="var(--dirt)"/>
+    <circle cx="200" cy="296" r="14" fill="var(--dirt)"/>
+    <line x1="200" y1="300" x2="0" y2="100" stroke="var(--chalk)" stroke-width="2"/>
+    <line x1="200" y1="300" x2="400" y2="100" stroke="var(--chalk)" stroke-width="2"/>
+    <rect x="249" y="239" width="7" height="7" fill="var(--chalk)" transform="rotate(45 252.5 242.5)"/>
+    <rect x="196.5" y="189" width="7" height="7" fill="var(--chalk)" transform="rotate(45 200 192.5)"/>
+    <rect x="144" y="239" width="7" height="7" fill="var(--chalk)" transform="rotate(45 147.5 242.5)"/>
+    <polygon points="196,296 204,296 204,300 200,304 196,300" fill="var(--chalk)"/>
+    ${marks}
+  </svg>`;
+}
+function typeIcon(t){ return `<svg viewBox="-14 -14 28 28">${shape(t,0,0,'',false,false)}</svg>`; }
+
+/* ---------- render: chart ---------- */
+function renderChart(){
+  ensureCur();
+  const p = player(), idx = T().players.indexOf(p);
+  const order = T().players.map((q,i)=>`<button data-p="${q.id}" class="${q.id===T().cur?'on':''}"><b>${i+1}</b><span>${esc(pName(q,i))}</span></button>`).join('');
+  const meta = [p.pos && `Pos ${esc(p.pos)}`, p.bats && `Bats ${p.bats}`, p.throws && `Throws ${p.throws}`].filter(Boolean).join(', ');
+
+  // tally of pitches by type
+  const t = Array.from({length:5},()=>({b:0,s:0}));
+  p.abs.forEach(a=>{ a.b.forEach(x=>x&&t[x.c-1].b++); a.s.forEach(x=>x&&t[x.c-1].s++); });
+  const tallyRows = S.pitches.map((n,i)=>`<tr><td><span class="dot" style="background:${PCOL[i]}">${i+1}</span>${esc(n)}</td><td>${t[i].b}</td><td>${t[i].s}</td><td>${t[i].b+t[i].s}</td></tr>`).join('');
+
+  const abs = p.abs.length ? p.abs.map((a,i)=>abCard(a,i)).join('')
+    : `<div class="empty">No at-bats yet. Tap <b>New at-bat</b>, then tap the field where the ball went.</div>`;
+
+  $('#app').innerHTML = `
+    <nav class="order" aria-label="Batting order">${order}</nav>
+    <div class="batter">
+      <button class="navbtn" id="prev" aria-label="Previous batter">Prev</button>
+      <div class="num">${esc(p.num)||'#'}</div>
+      <div class="who"><h2>${idx+1}. ${esc(pName(p,idx))}</h2><p>${meta||'Add details on the Lineup tab'}</p></div>
+      <button class="navbtn" id="next" aria-label="Next batter">Next</button>
+    </div>
+    <div class="grid">
+      <section class="fieldcol">
+        <div class="panel fieldwrap">
+          ${fieldSVG(p)}
+          <div class="marktype" role="group" aria-label="Type of hit">
+            ${[['GB','Ground ball'],['FB','Fly ball'],['LD','Line drive']].map(([k,l])=>`<button data-mt="${k}" aria-pressed="${S.markType===k}">${typeIcon(k)}${l}</button>`).join('')}
+          </div>
+          <p class="hint">Tap the field to mark the ball for the highlighted at-bat. Filled shapes are hits.</p>
+          <table class="tally"><thead><tr><th>Pitch</th><th style="color:var(--ball)">Balls</th><th style="color:var(--strike)">Strikes</th><th>Total</th></tr></thead><tbody>${tallyRows}</tbody></table>
+        </div>
+        <div class="notes"><label class="lbl" for="notes">Notes</label><textarea id="notes" placeholder="Tendencies, approach, what he chases">${esc(p.notes)}</textarea></div>
+      </section>
+      <section>
+        <div class="abhead"><h3>At-bats</h3><span style="display:flex;gap:6px"><button class="ghost" id="pdf">Team PDF</button><button class="primary" id="newAB">New at-bat</button></span></div>
+        <datalist id="results">${RESULTS.map(r=>`<option value="${r}">`).join('')}</datalist>
+        <div id="abs">${abs}</div>
+      </section>
+    </div>`;
+}
+function boxBtn(a,kind,i){
+  const v = a[kind][i];
+  const lbl = `${kind==='b'?'Ball':'Strike'} box ${i+1}${v?`, pitch ${v.c}`:', empty'}`;
+  return `<button class="box ${v?'f':''}" data-ab="${a.id}" data-k="${kind}" data-i="${i}" aria-label="${lbl}" ${v?`style="color:${PCOL[v.c-1]}"`:''}>${v?`<sup>${v.q}</sup>${v.c}`:''}</button>`;
+}
+function abCard(a,i){
+  const n = a.b.filter(Boolean).length + a.s.filter(Boolean).length;
+  const markTxt = a.mark ? {GB:'Ground ball',FB:'Fly ball',LD:'Line drive'}[a.mark.t] + ' marked' : 'No spray mark';
+  return `<div class="ab ${a.id===T().curAB?'on':''}" data-ab="${a.id}">
+    <div class="abtop">
+      <span class="abno">${i+1}</span>
+      <input list="results" data-res="${a.id}" value="${esc(a.result)}" placeholder="Result (1B, 6-3, K...)" aria-label="Result for at-bat ${i+1}">
+      <button class="iconbtn" data-del="${a.id}" aria-label="Delete at-bat ${i+1}">Delete</button>
+    </div>
+    <div class="row b"><span class="lab">B</span><div class="boxes">${Array.from({length:BOXES},(_,k)=>boxBtn(a,'b',k)).join('')}</div></div>
+    <div class="row s"><span class="lab">S</span><div class="boxes">${Array.from({length:BOXES},(_,k)=>boxBtn(a,'s',k)).join('')}</div></div>
+    <div class="abfoot"><span>${n} pitch${n===1?'':'es'}</span><span>${markTxt}</span><span class="spacer"></span>${a.mark?`<button class="iconbtn" data-unmark="${a.id}">Remove mark</button>`:''}</div>
+  </div>`;
+}
+
+/* ---------- render: lineup ---------- */
+function renderLineup(){
+  const rows = T().players.map((p,i)=>`
+    <div class="lu" data-p="${p.id}">
+      <span class="ord">${i+1}</span>
+      <input data-f="name" value="${esc(p.name)}" placeholder="Name" aria-label="Name, batter ${i+1}">
+      <input data-f="num" value="${esc(p.num)}" placeholder="#" inputmode="numeric" aria-label="Number">
+      <input class="opt" data-f="pos" value="${esc(p.pos)}" placeholder="Pos" aria-label="Position">
+      <select class="opt" data-f="bats" aria-label="Bats">${['','R','L','S'].map(v=>`<option ${p.bats===v?'selected':''} value="${v}">${v||'Bats'}</option>`).join('')}</select>
+      <select class="opt" data-f="throws" aria-label="Throws">${['','R','L'].map(v=>`<option ${p.throws===v?'selected':''} value="${v}">${v||'Thr'}</option>`).join('')}</select>
+      <span class="acts">
+        <button class="iconbtn" data-up="${p.id}" aria-label="Move up">▲</button>
+        <button class="iconbtn" data-down="${p.id}" aria-label="Move down">▼</button>
+        <button class="iconbtn" data-rm="${p.id}" aria-label="Remove batter">✕</button>
+      </span>
+    </div>`).join('');
+  $('#app').innerHTML = `
+    <div class="panel">
+      <label class="lbl" for="team" style="margin-top:0">Team name</label>
+      <input id="team" class="ghost" style="width:100%;max-width:420px" value="${esc(T().name)}" placeholder="Opponent or team name">
+      <div class="btnrow"><button class="ghost" id="addTeam">Add another team</button>
+        ${S.teams.length>1?`<button class="ghost danger" id="delTeam">Delete this team</button>`:''}</div>
+      <label class="lbl">Batting order</label>
+      <div class="lu headrow"><span></span><span>Name</span><span>#</span><span class="opt">Pos</span><span class="opt">Bats</span><span class="opt">Throws</span><span></span></div>
+      ${rows}
+      <div class="btnrow"><button class="primary" id="addP">Add batter</button></div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <label class="lbl" style="margin-top:0" for="themeSel">Display</label>
+      <select id="themeSel" class="ghost" style="max-width:420px;width:100%">
+        ${[['auto','Match phone setting'],['light','Light'],['dark','Dark'],['sun','Sun: high contrast for daylight']].map(([v,l])=>`<option value="${v}" ${(S.theme||'auto')===v?'selected':''}>${l}</option>`).join('')}
+      </select>
+      <label class="lbl">Pitch key</label>
+      <div class="set">${S.pitches.map((n,i)=>`<span class="dot" style="background:${PCOL[i]}">${i+1}</span><input data-pitch="${i}" value="${esc(n)}" aria-label="Pitch ${i+1} name">`).join('')}</div>
+      <label class="lbl">Backup</label>
+      <p class="hint" style="margin-top:0">Charts save on this device. Export backup saves every team in one file. Importing adds those teams to this device.</p>
+      <div class="btnrow">
+        <button class="ghost" id="pdf">Download team PDF</button>
+        <button class="ghost" id="exp">Export backup</button>
+        <button class="ghost" id="imp">Import backup</button>
+        <input type="file" id="impFile" accept=".json,application/json" hidden>
+        <button class="ghost" id="print">Print</button>
+        <button class="ghost danger" id="clearABs">Clear all at-bats</button>
+        <button class="ghost danger" id="reset">Start over</button>
+      </div>
+    </div>`;
+}
+
+function applyTheme(){
+  const th = S.theme || 'auto';
+  if(th==='auto') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', th);
+  $('#sunBtn').setAttribute('aria-pressed', th==='sun');
+}
+function render(){
+  applyTheme();
+  
+  $('#teamSel').innerHTML = S.teams.map((t,i)=>`<option value="${t.id}" ${t.id===S.teamId?'selected':''}>${esc(tName(t,i))}</option>`).join('')
+    + `<option value="__new">+ New team</option>`;
+  $('#tabChart').setAttribute('aria-selected', S.tab==='chart');
+  $('#tabLineup').setAttribute('aria-selected', S.tab==='lineup');
+  S.tab==='chart' ? renderChart() : renderLineup();
+}
+
+/* ---------- pitch picker ---------- */
+let pending = null;
+function openPicker(abId,k,i){
+  pending = {abId,k,i};
+  $('#sheetTitle').textContent = `${k==='b'?'Ball':'Strike'}, box ${i+1}: which pitch?`;
+  $('#picks').innerHTML = S.pitches.map((n,j)=>`<button data-pick="${j+1}" style="background:${PCOL[j]}"><b>${j+1}</b><span>${esc(n)}</span></button>`).join('');
+  $('#sheet').classList.add('open'); $('#sheet').setAttribute('aria-hidden','false');
+  $('#picks button').focus();
+}
+function closePicker(){ pending=null; $('#sheet').classList.remove('open'); $('#sheet').setAttribute('aria-hidden','true'); }
+function renumber(a){
+  const all = [...a.b, ...a.s].filter(Boolean).sort((x,y)=>x.q-y.q);
+  all.forEach((x,i)=>x.q=i+1);
+}
+function setBox(val){
+  const p = player(), a = p.abs.find(x=>x.id===pending.abId);
+  if(!a) return closePicker();
+  const cur = a[pending.k][pending.i];
+  if(val===null){ a[pending.k][pending.i] = null; }
+  else if(cur){ cur.c = val; }
+  else {
+    const q = [...a.b, ...a.s].filter(Boolean).length + 1;
+    a[pending.k][pending.i] = {c:val,q};
+  }
+  renumber(a);
+  T().curAB = a.id; closePicker(); save(); render();
+}
+$('#picks').addEventListener('click',e=>{ const b=e.target.closest('[data-pick]'); if(b) setBox(+b.dataset.pick); });
+$('#clearBox').onclick = ()=>setBox(null);
+$('#closeSheet').onclick = closePicker;
+$('#sheet').addEventListener('click',e=>{ if(e.target.id==='sheet') closePicker(); });
+document.addEventListener('keydown',e=>{
+  if(!pending) return;
+  if(e.key==='Escape') closePicker();
+  if(/^[1-5]$/.test(e.key)) setBox(+e.key);
+  if(e.key==='Backspace'||e.key==='Delete') setBox(null);
+});
+
+/* ---------- events ---------- */
+function addTeam(){
+  const t = blankTeam(); S.teams.push(t); S.teamId = t.id; S.tab = 'lineup'; save(); render();
+  setTimeout(()=>$('#team')&&$('#team').focus(),0);
+}
+$('#teamSel').onchange = e=>{
+  if(e.target.value==='__new') return addTeam();
+  S.teamId = e.target.value; save(); render(); scrollTo(0,0);
+};
+$('#sunBtn').onclick = ()=>{
+  if(S.theme==='sun'){ S.theme = S.prevTheme || 'auto'; }
+  else { S.prevTheme = S.theme || 'auto'; S.theme = 'sun'; }
+  save(); applyTheme();
+};
+$('#app').addEventListener('change', e=>{
+  if(e.target.id==='themeSel'){ S.theme = e.target.value; if(S.theme!=='sun') S.prevTheme = S.theme; save(); applyTheme(); }
+});
+$('#tabChart').onclick = ()=>{ S.tab='chart'; save(); render(); };
+$('#tabLineup').onclick = ()=>{ S.tab='lineup'; save(); render(); };
+
+$('#app').addEventListener('click', e=>{
+  const t = e.target;
+  const q = sel => t.closest(sel);
+  let el;
+  // chart tab
+  if(el = q('.order [data-p]')){ T().cur = el.dataset.p; T().curAB=null; save(); render(); return; }
+  if(q('#prev')||q('#next')){
+    const i = T().players.indexOf(player()), n = T().players.length;
+    T().cur = T().players[(i + (q('#next')?1:-1) + n) % n].id; T().curAB=null; save(); render(); return;
+  }
+  if(el = q('[data-mt]')){ S.markType = el.dataset.mt; const a=player().abs.find(x=>x.id===T().curAB); if(a&&a.mark) a.mark.t=S.markType; save(); render(); return; }
+  if(q('#newAB')){ const a=blankAB(); player().abs.push(a); T().curAB=a.id; save(); render(); return; }
+  if(el = q('[data-del]')){ const p=player(); const i=p.abs.findIndex(a=>a.id===el.dataset.del);
+    if(confirm(`Delete at-bat ${i+1}?`)){ p.abs.splice(i,1); T().curAB=null; save(); render(); } return; }
+  if(el = q('[data-unmark]')){ player().abs.find(a=>a.id===el.dataset.unmark).mark=null; save(); render(); return; }
+  if(el = q('.box')){ openPicker(el.dataset.ab, el.dataset.k, +el.dataset.i); return; }
+  if(el = q('.mk')){ T().curAB = el.dataset.ab; const a=player().abs.find(x=>x.id===T().curAB); if(a&&a.mark) S.markType=a.mark.t; save(); render(); return; }
+  if(el = q('#field')){
+    const p = player();
+    let a = p.abs.find(x=>x.id===T().curAB);
+    if(!a){ a = blankAB(); p.abs.push(a); T().curAB = a.id; }
+    const pt = el.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY;
+    const loc = pt.matrixTransform(el.getScreenCTM().inverse());
+    a.mark = {x:Math.round(Math.max(12,Math.min(388,loc.x))), y:Math.round(Math.max(14,Math.min(300,loc.y))), t:S.markType};
+    save(); render(); return;
+  }
+  if(el = q('.ab')){ if(t.tagName!=='INPUT' && T().curAB!==el.dataset.ab){ T().curAB = el.dataset.ab; save(); render(); } return; }
+
+  // lineup tab
+  if(q('#addTeam')){ addTeam(); return; }
+  if(q('#delTeam')){
+    const t=T(), n=t.players.reduce((k,p)=>k+p.abs.length,0);
+    if(confirm(`Delete ${tName(t,S.teams.indexOf(t))} with its lineup${n?` and ${n} at-bat(s)`:''}?`)){
+      S.teams.splice(S.teams.indexOf(t),1); S.teamId=S.teams[0].id; save(); render(); }
+    return;
+  }
+  if(q('#addP')){ T().players.push(blankPlayer()); save(); render(); return; }
+  if(el = q('[data-up]')||q('[data-down]')){
+    const id = el.dataset.up||el.dataset.down, i = T().players.findIndex(p=>p.id===id), j = el.dataset.up ? i-1 : i+1;
+    if(j>=0 && j<T().players.length){ [T().players[i],T().players[j]] = [T().players[j],T().players[i]]; save(); render(); } return;
+  }
+  if(el = q('[data-rm]')){ const i=T().players.findIndex(p=>p.id===el.dataset.rm), p=T().players[i];
+    if(confirm(`Remove ${pName(p,i)}${p.abs.length?` and ${p.abs.length} at-bat(s)`:''}?`)){ T().players.splice(i,1); save(); render(); } return; }
+  if(el = q('#pdf')){ exportPDF(el); return; }
+  if(q('#exp')){
+    const blob = new Blob([JSON.stringify(S,null,1)],{type:'application/json'});
+    const link = document.createElement('a'); link.href = URL.createObjectURL(blob);
+    link.download = `spray-charts-${new Date().toISOString().slice(0,10)}.json`; link.click(); return;
+  }
+  if(q('#imp')){ $('#impFile').click(); return; }
+  if(q('#print')){ S.tab='chart'; render(); setTimeout(()=>window.print(),100); return; }
+  if(q('#clearABs')){ if(confirm(`Clear every at-bat for ${tName(T(),S.teams.indexOf(T()))} but keep the lineup?`)){ T().players.forEach(p=>p.abs=[]); T().curAB=null; save(); render(); } return; }
+  if(q('#reset')){ if(confirm('Erase every team, lineup, and at-bat?')){ S = defaults(); S.tab='lineup'; save(); render(); } return; }
+});
+
+$('#app').addEventListener('input', e=>{
+  const t = e.target;
+  if(t.id==='notes'){ player().notes = t.value; save(); return; }
+  if(t.dataset.res){ const a=player().abs.find(x=>x.id===t.dataset.res); a.result=t.value; save(); return; }
+  if(t.id==='team'){ T().name=t.value; save(); render(); const el=$('#team'); el.focus(); el.setSelectionRange(el.value.length,el.value.length); return; }
+  if(t.dataset.pitch){ S.pitches[+t.dataset.pitch]=t.value; save(); return; }
+  if(t.dataset.f){ const p=T().players.find(x=>x.id===t.closest('.lu').dataset.p); p[t.dataset.f]=t.value; save(); return; }
+});
+// redraw the field when a result is committed so hits fill in
+$('#app').addEventListener('change', e=>{
+  if(e.target.dataset.res){ const y=scrollY; render(); scrollTo(0,y); }
+});
+$('#app').addEventListener('change', e=>{
+  if(e.target.id!=='impFile') return;
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{ try{
+      const d=JSON.parse(r.result); if(!Array.isArray(d.teams)&&!Array.isArray(d.players)) throw 0;
+      const inc = upgrade(d).teams, ids = new Set(S.teams.map(t=>t.id));
+      const fresh = inc.filter(t=>!ids.has(t.id)), dup = inc.filter(t=>ids.has(t.id));
+      if(dup.length && confirm(`${dup.length} team(s) in the file are already here. Replace them with the file's version?`))
+        dup.forEach(t=>{ S.teams[S.teams.findIndex(x=>x.id===t.id)] = t; });
+      S.teams.push(...fresh); if(inc[0]) S.teamId = inc[0].id; save(); render();
+      alert(`Imported ${inc.length} team(s).`);
+    }
+    catch(err){ alert('That file isn\'t a spray chart backup. Choose a .json file made with Export backup.'); } };
+  r.readAsText(f);
+});
+
+/* ---------- team PDF ---------- */
+const PDFLIB_SRC = ['https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js',
+                    'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js'];
+function loadPdfLib(i=0){
+  if(window.PDFLib) return Promise.resolve(window.PDFLib);
+  return new Promise((res,rej)=>{
+    const sc = document.createElement('script'); sc.src = PDFLIB_SRC[i];
+    sc.onload = ()=>res(window.PDFLib);
+    sc.onerror = ()=> i+1<PDFLIB_SRC.length ? loadPdfLib(i+1).then(res,rej) : rej(new Error('load'));
+    document.head.appendChild(sc);
+  });
+}
+async function exportPDF(btn){
+  const team = T(), ti = S.teams.indexOf(team);
+  const hitters = team.players.map((p,i)=>({p,i})).filter(({p})=>p.name.trim()||p.num||p.abs.length);
+  if(!hitters.length){ alert('Add hitters to the lineup before making a PDF.'); return; }
+  const label = btn.textContent; btn.textContent = 'Making PDF...'; btn.disabled = true;
+  try{
+    const {PDFDocument, StandardFonts, rgb} = await loadPdfLib();
+    const doc = await PDFDocument.create();
+    const reg = await doc.embedFont(StandardFonts.Helvetica), bold = await doc.embedFont(StandardFonts.HelveticaBold);
+    const hex = h => rgb(parseInt(h.slice(1,3),16)/255, parseInt(h.slice(3,5),16)/255, parseInt(h.slice(5,7),16)/255);
+    const C = {ink:hex('#1D2B4A'),muted:hex('#66708A'),line:hex('#C9CED8'),grass:hex('#A9C597'),grass2:hex('#98B886'),
+      dirt:hex('#DDBE92'),white:hex('#FFFFFF'),ball:hex('#2E5EAA'),strike:hex('#C8102E'),
+      p:['#2E5EAA','#C8102E','#2F8F5B','#C98300','#6B4FA0'].map(hex)};
+    const W=612, H=792, M=36;
+    const clean = t => String(t??'').replace(/[^\x20-\x7E\xA0-\xFF]/g,'?');
+    const fit = (t,f,sz,max) => { t=clean(t); while(t && f.widthOfTextAtSize(t,sz)>max) t=t.slice(0,-1); return t; };
+    const teamName = clean(tName(team,ti));
+    const today = new Date().toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
+
+    // top-based coordinate helpers
+    let pg;
+    const text = (t,x,y,sz,f=reg,color=C.ink)=>pg.drawText(clean(t),{x,y:H-y-sz*0.75,size:sz,font:f,color});
+    const ctext = (t,cx,y,sz,f=reg,color=C.ink)=>text(t,cx-f.widthOfTextAtSize(clean(t),sz)/2,y,sz,f,color);
+    const rect = (x,y,w,h,o)=>pg.drawRectangle({x,y:H-y-h,width:w,height:h,...o});
+    const line = (x1,y1,x2,y2,color=C.line,t=0.75)=>pg.drawLine({start:{x:x1,y:H-y1},end:{x:x2,y:H-y2},thickness:t,color});
+    const path = (d,x,y,sc,o)=>pg.drawSvgPath(d,{x,y:H-y,scale:sc,...o});
+
+    function mark(t,x,y,n,hit,r){
+      const fill = hit?C.ink:C.white, o = {color:fill,borderColor:C.ink,borderWidth:1};
+      if(t==='GB') rect(x-r,y-r,2*r,2*r,o);
+      else if(t==='FB') pg.drawCircle({x,y:H-y,size:r*1.1,...o});
+      else path(`M0,${-r*1.3} L${r*1.2},${r*0.9} L${-r*1.2},${r*0.9} Z`,x,y,1,o);
+      const sz = String(n).length>1 ? 6 : 7;
+      ctext(n,x,y-sz*0.38+(t==='LD'?2:0),sz,bold,hit?C.white:C.ink);
+    }
+
+    function pageHeader(p,i,cont){
+      pg = doc.addPage([W,H]);
+      text(teamName+' spray chart',M,M,10,bold,C.muted);
+      const right = cont ? `continued, ${today}` : today;
+      text(right,W-M-reg.widthOfTextAtSize(clean(right),10),M,10,reg,C.muted);
+      const nm = `${p.num?'#'+p.num+'  ':''}${pName(p,i)}`;
+      text(fit(nm,bold,22,330),M,M+18,22,bold);
+      const meta = [`Batting ${i+1}`, p.pos&&`Pos ${p.pos}`, p.bats&&`Bats ${p.bats}`, p.throws&&`Throws ${p.throws}`].filter(Boolean).join('   ');
+      text(meta,W-M-reg.widthOfTextAtSize(clean(meta),11),M+26,11,reg,C.muted);
+      line(M,M+50,W-M,M+50,C.ink,1.2);
+    }
+
+    function abGrid(p,from,top){
+      const cols=3, rows=16, cw=(W-2*M)/cols, rh=(H-M-top)/rows, bw=10.5, bh=Math.min(10,(rh-3)/2);
+      for(let k=0;k<cols*rows && from+k<p.abs.length;k++){
+        const a=p.abs[from+k], c=Math.floor(k/rows), r=k%rows;
+        const x=M+c*cw, y=top+r*rh;
+        ctext(from+k+1,x+7,y+bh-4,9,bold);
+        [['b','B',C.ball],['s','S',C.strike]].forEach(([kind,lab,col],j)=>{
+          const yy=y+j*bh;
+          ctext(lab,x+19,yy+2,7,bold,col);
+          for(let b=0;b<BOXES;b++){
+            const bx=x+24+b*bw, v=a[kind][b];
+            rect(bx,yy,bw,bh,{borderColor:C.line,borderWidth:0.6});
+            if(v) ctext(v.c,bx+bw/2,yy+2,7.5,bold,C.p[v.c-1]);
+          }
+        });
+        const rx=x+24+BOXES*bw+3, rw=cw-(24+BOXES*bw+3)-6;
+        rect(rx,y,rw,2*bh,{borderColor:C.ink,borderWidth:0.6});
+        text(fit(a.result,bold,8.5,rw-4),rx+3,y+bh-4,8.5,bold);
+      }
+      return from+cols*rows;
+    }
+
+    for(const {p,i} of hitters){
+      pageHeader(p,i,false);
+      // field
+      const fx=M, fy=M+62, sc=0.78;
+      path('M200,300 L0,100 A283,283 0 0 1 400,100 Z',fx,fy,sc,{color:C.grass});
+      path('M200,300 L108,208 A130,130 0 0 1 292,208 Z',fx,fy,sc,{color:C.dirt});
+      path('M200,286 L243,243 L200,203 L157,243 Z',fx,fy,sc,{color:C.grass});
+      path('M0,100 L200,300 L400,100',fx,fy,sc,{borderColor:C.white,borderWidth:1.5});
+      [[252.5,242.5],[200,192.5],[147.5,242.5]].forEach(([bx,by])=>
+        path('M0,-4 L4,0 L0,4 L-4,0 Z',fx+bx*sc,fy+by*sc,1,{color:C.white}));
+      path('M196,296 L204,296 L204,300 L200,304 L196,300 Z',fx,fy,sc,{color:C.white});
+      p.abs.forEach((a,n)=>{ if(a.mark) mark(a.mark.t,fx+a.mark.x*sc,fy+a.mark.y*sc,n+1,isHit(a.result),7.5); });
+      // legend
+      let ly = fy+312*sc+6;
+      [['GB','Ground ball'],['FB','Fly ball'],['LD','Line drive']].forEach(([t,l],k)=>{
+        const lx=fx+k*92; mark(t,lx+6,ly+6,'',false,5); text(l,lx+16,ly+2,9);
+      });
+      text('Filled = hit',fx+276,ly+2,9,reg,C.muted);
+
+      // tally
+      const tx=M+330, tw=W-M-tx; let ty=fy;
+      text('Pitches seen',tx,ty,12,bold); ty+=18;
+      const colX=[tx, tx+tw-96, tx+tw-60, tx+tw-24];
+      ['Pitch','Balls','Strikes','Total'].forEach((h,k)=> k? ctext(h,colX[k]+10,ty,8,bold,k===1?C.ball:k===2?C.strike:C.muted) : text(h,tx,ty,8,bold,C.muted));
+      ty+=12;
+      const t = Array.from({length:5},()=>({b:0,s:0}));
+      p.abs.forEach(a=>{ a.b.forEach(x=>x&&t[x.c-1].b++); a.s.forEach(x=>x&&t[x.c-1].s++); });
+      S.pitches.forEach((nm,k)=>{
+        line(tx,ty-3,W-M,ty-3);
+        rect(tx,ty,11,11,{color:C.p[k]}); ctext(k+1,tx+5.5,ty+2,8,bold,C.white);
+        text(fit(nm,reg,9.5,colX[1]-tx-24),tx+16,ty+1,9.5);
+        [t[k].b,t[k].s,t[k].b+t[k].s].forEach((v,j)=>ctext(v,colX[j+1]+10,ty+1,9.5));
+        ty+=17;
+      });
+      line(tx,ty-3,W-M,ty-3);
+      const hits = p.abs.filter(a=>isHit(a.result)).length;
+      text(`${p.abs.length} at-bat${p.abs.length===1?'':'s'}, ${hits} hit${hits===1?'':'s'}`,tx,ty+3,9.5,reg,C.muted);
+      ty+=24;
+      // notes
+      text('Notes',tx,ty,12,bold); ty+=17;
+      const words = clean(p.notes).split(/\s+/).filter(Boolean); let ln='', lines=[];
+      words.forEach(w=>{ const tryl = ln?ln+' '+w:w; if(reg.widthOfTextAtSize(tryl,9.5)>tw){ lines.push(ln); ln=w; } else ln=tryl; });
+      if(ln) lines.push(ln);
+      const maxL = Math.floor((fy+312*sc+20-ty)/12);
+      if(lines.length>maxL){ lines=lines.slice(0,maxL); lines[maxL-1]=fit(lines[maxL-1],reg,9.5,tw-12)+'...'; }
+      if(!lines.length) for(let k=0;k<Math.min(maxL,5);k++) line(tx,ty+k*16+12,W-M,ty+k*16+12);
+      lines.forEach((l,k)=>text(l,tx,ty+k*12,9.5));
+
+      // at-bats
+      const gTop = fy+312*sc+30;
+      line(M,gTop-8,W-M,gTop-8,C.ink,1.2);
+      let next = abGrid(p,0,gTop);
+      while(next < p.abs.length){ pageHeader(p,i,true); next = abGrid(p,next,M+62); }
+    }
+
+    const bytes = await doc.save();
+    const blob = new Blob([bytes],{type:'application/pdf'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `${teamName.replace(/\W+/g,'-').replace(/^-|-$/g,'').toLowerCase()||'team'}-spray-chart.pdf`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),60000);
+  }catch(err){
+    console.error(err);
+    alert("Couldn't make the PDF. The PDF tool loads from the internet the first time, so check your connection and try again.");
+  }finally{ btn.textContent = label; btn.disabled = false; }
+}
+
+render();
+</script>
+</body>
+</html>
