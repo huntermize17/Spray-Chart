@@ -105,6 +105,7 @@ main{max-width:1100px;margin:0 auto;padding:12px 16px 40px}
 .marktype button[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);font-weight:600}
 .marktype svg{width:16px;height:16px}
 .hint{color:var(--muted);font-size:14px;margin:8px 0 0}
+#field .mkx rect,#field .mkx circle,#field .mkx polygon{stroke-dasharray:3 2;opacity:.8}
 
 .tally{width:100%;border-collapse:collapse;margin-top:12px;font-size:14px}
 .tally th,.tally td{border-top:1px solid var(--line);padding:5px 4px;text-align:center}
@@ -520,6 +521,7 @@ function tendencies(p){
   const colOf = sd => !b ? {L:0,C:1,R:2}[sd] : sd==='C' ? 1 : (sd==='L') === (b==='R') ? 0 : 2;
   const rows = {GB:[0,0,0],FB:[0,0,0],LD:[0,0,0]};
   p.abs.forEach(a=>{ if(a.mark) rows[a.mark.t][colOf(side(a.mark))]++; });
+  (p.sprays||[]).forEach(m=>{ if(rows[m.t]) rows[m.t][colOf(side(m))]++; });
   const all = [0,1,2].map(k=>rows.GB[k]+rows.FB[k]+rows.LD[k]);
   return {cols, rows, all, n: all[0]+all[1]+all[2], byHand: !!b};
 }
@@ -594,6 +596,10 @@ function fieldSVG(p){
     if(!a.mark) return;
     marks += `<g class="mk${a.id===T().curAB?' on':''}" data-ab="${a.id}" style="cursor:pointer">${shape(a.mark.t,a.mark.x,a.mark.y,i+1,isHit(a.result),a.id===T().curAB)}</g>`;
   });
+  // spray lines from paper that aren't tied to an at-bat: drawn dashed, no number
+  (p.sprays||[]).forEach(m=>{
+    marks = `<g class="mkx" data-xm="${m.id}" style="cursor:pointer">${shape(m.t,m.x,m.y,'',false,false)}</g>` + marks;
+  });
   return `<svg id="field" viewBox="0 0 400 312" role="img" aria-label="Baseball field, tap to mark where the ball went">
     <path d="M200,300 L0,100 A283,283 0 0 1 400,100 Z" fill="var(--grass)"/>
     <path d="M200,300 L14,114 A263,263 0 0 1 386,114 Z" fill="var(--grass2)" opacity=".5"/>
@@ -661,7 +667,7 @@ function renderChart(){
           <div class="marktype" role="group" aria-label="Type of hit">
             ${[['GB','Ground ball'],['FB','Fly ball'],['LD','Line drive']].map(([k,l])=>`<button data-mt="${k}" aria-pressed="${S.markType===k}">${typeIcon(k)}${l}</button>`).join('')}
           </div>
-          <p class="hint">Tap the field to mark the ball for the highlighted at-bat. Filled shapes are hits.</p>
+          <p class="hint">Tap the field to mark the ball for the highlighted at-bat. Filled shapes are hits.${(p.sprays||[]).length?` Dashed shapes without a number are paper-chart lines not tied to an at-bat (${p.sprays.length}); they count in the tendencies. Tap one to remove it.`:''}</p>
           <h4 class="tendh">Spray tendencies</h4>
           <p class="headline">${headline}</p>
           <table class="tally"><thead><tr><th></th>${td.cols.map(c=>`<th>${c}</th>`).join('')}<th>Total</th></tr></thead><tbody>${tRows}</tbody></table>
@@ -1227,6 +1233,7 @@ $('#app').addEventListener('click', e=>{
     if(confirm(`Delete at-bat ${i+1}?`)){ p.abs.splice(i,1); T().curAB=null; save(); render(); } return; }
   if(el = q('[data-unmark]')){ player().abs.find(a=>a.id===el.dataset.unmark).mark=null; save(); render(); return; }
   if(el = q('.box')){ openPicker(el.dataset.ab, el.dataset.k, +el.dataset.i); return; }
+  if(el = q('.mkx')){ const p = player(); if(confirm('Remove this spray mark? It came from a paper chart line that is not tied to an at-bat.')){ p.sprays = (p.sprays||[]).filter(m=>m.id!==el.dataset.xm); save(); render(); } return; }
   if(el = q('.mk')){ T().curAB = el.dataset.ab; const a=player().abs.find(x=>x.id===T().curAB); if(a&&a.mark) S.markType=a.mark.t; save(); render(); return; }
   if(el = q('#field')){
     const p = player();
@@ -1277,7 +1284,7 @@ $('#app').addEventListener('click', e=>{
   if(q('#bkLater')){ bannerHidden = true; const b=$('.bkbanner'); if(b) b.remove(); return; }
   if(el = q('[data-restore]')){ restoreMode = el.dataset.restore; $('#impFile').value=''; $('#impFile').click(); return; }
   if(q('#print')){ S.tab='chart'; render(); setTimeout(()=>window.print(),100); return; }
-  if(q('#clearABs')){ if(confirm(`Clear every at-bat for ${tName(T(),S.teams.indexOf(T()))} but keep the lineup?`)){ T().players.forEach(p=>p.abs=[]); T().curAB=null; save(); render(); } return; }
+  if(q('#clearABs')){ if(confirm(`Clear every at-bat for ${tName(T(),S.teams.indexOf(T()))} but keep the lineup?`)){ T().players.forEach(p=>{ p.abs=[]; p.sprays=[]; }); T().curAB=null; save(); render(); } return; }
   if(q('#reset')){ if(confirm(`Erase every team, lineup, and at-bat?${cloud.user?'\n\nYou are signed in, so this also erases them from the cloud and your other devices.':''}`)){
     const gone = S.teams.map(t=>t.id), keep = {theme:S.theme, noZoom:S.noZoom, deletedTeams:[...(S.deletedTeams||[]), ...gone]};
     S = {...defaults(), ...keep}; S.tab='lineup'; save(); render(); } return; }
@@ -1430,7 +1437,7 @@ Put your whole answer in a single code block containing only the JSON, with no o
 ` + aiPrompt();
 }
 function hitterReview(h,i,j,team){
-  const nAB = h.atBats.length, nMark = h.atBats.filter(a=>a.mark).length;
+  const nAB = h.atBats.length, nMark = h.atBats.filter(a=>a.mark).length + (h.extras||[]).length;
   const opts = `<option value="new" ${h.target==='new'?'selected':''}>Add as a new hitter</option>` +
     (team ? team.players.map((p,k)=>`<option value="${p.id}" ${h.target===p.id?'selected':''}>Add to ${esc(p.num?'#'+p.num+' ':'')}${esc(pName(p,k))}</option>`).join('') : '');
   const rows = h.atBats.map(a=>{
@@ -1477,7 +1484,7 @@ THE SHEET
 - Each ball in play is a pen line starting at home plate (bottom-left corner) and ending where the ball went. Dotted or dashed line = ground ball. Solid line that curves or arcs = fly ball. Solid straight line = line drive. An arrowhead at the end means the ball got through for a hit; a short cross bar "T" at the end means it was caught or fielded there. Lines are usually NOT numbered.
 
 MATCHING LINES TO AT-BATS
-For every at-bat whose result is a ball in play, find its line on the field and report where it ends. Use the result to match: F-7 or F7 = fly ball to the left fielder (a curved line ending in left field, up and slightly right of the left edge), F-8 = fly to center, F-9 = fly to right, P-5 = pop up to the third baseman, L-6 = line drive to the shortstop, 6-3 or 4-3 = ground ball to that infielder, 1-3 = ground ball to the pitcher, 3U = ground ball to the first baseman, 1B-7 = single to left field, 2B = double (use the line with an arrowhead). Pen color can help (a blue at-bat usually has a blue line). Each line belongs to only one at-bat. If a line can't be matched with confidence, put it in "unmatchedLines" instead.
+For every at-bat whose result is a ball in play, find its line on the field and report where it ends. Use the result to match: F-7 or F7 = fly ball to the left fielder (a curved line ending in left field, up and slightly right of the left edge), F-8 = fly to center, F-9 = fly to right, P-5 = pop up to the third baseman, L-6 = line drive to the shortstop, 6-3 or 4-3 = ground ball to that infielder, 1-3 = ground ball to the pitcher, 3U = ground ball to the first baseman, 1B-7 = single to left field, 2B = double (use the line with an arrowhead). Pen color can help (a blue at-bat usually has a blue line). Each line belongs to only one at-bat. Every line on the field must be reported exactly once: either as an at-bat's "spray" or, if you can't match it with confidence, in "unmatchedLines". Never leave a line out, because every line counts toward the hitter's tendencies.
 
 POSITIONS
 Give each line's END POINT as fractions of the field box: "x" = distance from the LEFT edge of the box (0) to the right edge (1); "y" = distance from the BOTTOM edge of the box (0) to the top edge (1). So home plate is x 0, y 0; second base is about x 0.32, y 0.32; a ball ending near the top middle of the box is about x 0.45, y 0.95.
@@ -1583,7 +1590,7 @@ function applySprays(abs, sprays){
       if(c.length===1){ const sp = loose.splice(i,1)[0]; c[0].mark = {...sprayXY(sp.angle,sp.depth), t:sp.hitType}; c[0]._sprayed = true; open = open.filter(a=>a!==c[0]); changed = true; break; }
     }
   }
-  if(loose.length && loose.length===open.length) open.forEach((a,i)=>{ a.mark = {...sprayXY(loose[i].angle,loose[i].depth), t:loose[i].hitType}; a._sprayed = true; });
+  if(loose.length && loose.length===open.length){ open.forEach((a,i)=>{ a.mark = {...sprayXY(loose[i].angle,loose[i].depth), t:loose[i].hitType}; a._sprayed = true; }); loose.length = 0; }
   abs.forEach(a=>delete a._sprayed);
   // no line at all: use the fielder in the result (F8, L6, 6-3) as a rough spot
   abs.forEach(a=>{
@@ -1592,6 +1599,8 @@ function applySprays(abs, sprays){
     const t = g.t || a.hitTypeGuess;
     if(t && FIELDER[g.f]) a.mark = {x:FIELDER[g.f][0], y:FIELDER[g.f][1], t};
   });
+  // lines that belong to no at-bat still count toward tendencies
+  return loose.map(sp=>({id:uid(), ...sprayXY(sp.angle,sp.depth), t:sp.hitType}));
 }
 function parseAI(text, team){
   let t = String(text||'').trim().replace(/^```(?:json)?/i,'').replace(/```$/,'').trim();
@@ -1603,17 +1612,17 @@ function parseAI(text, team){
     const loose = (h.unmatchedLines||[]).filter(l=>l && isFinite(l.x) && isFinite(l.y))
       .map(l=>{ const xy = boxToField(l.x,l.y); const ang = Math.atan2(xy.x-200, 300-xy.y)*180/Math.PI;
         return {ab:null, hitType:l.hitType, angle:ang, depth:Math.hypot(xy.x-200,300-xy.y)/283}; });
-    applySprays(abs, (h.sprays||[]).concat(loose));
+    const extras = applySprays(abs, (h.sprays||[]).concat(loose));
     abs.forEach(a=>delete a.hitTypeGuess);
     const o = {name:String(h.name||'').trim(), number:String(h.number||'').replace(/^#/,'').trim(), position:String(h.position||'').trim().slice(0,4),
       bats:['R','L','S'].includes(String(h.bats||'').toUpperCase())?String(h.bats).toUpperCase():'', throws:['R','L'].includes(String(h.throws||'').toUpperCase())?String(h.throws).toUpperCase():'',
       runner:['green','yellow','red'].includes(String(h.runner||'').toLowerCase())?String(h.runner).toLowerCase():'',
       sac:Math.max(0,parseInt(h.sac)||0), drag:Math.max(0,parseInt(h.drag)||0),
       steals:(h.steals||[]).map(String).filter(c=>COUNTS.includes(c.trim())).map(c=>c.trim()),
-      hitRuns:(h.hitRuns||[]).map(String).filter(c=>COUNTS.includes(c.trim())).map(c=>c.trim()), notes:String(h.notes||'').trim(), atBats:abs, include:true};
+      hitRuns:(h.hitRuns||[]).map(String).filter(c=>COUNTS.includes(c.trim())).map(c=>c.trim()), notes:String(h.notes||'').trim(), atBats:abs, extras, include:true};
     o.target = autoMatch(o, team);
     return o;
-  }).filter(h=>h.name || h.number || h.atBats.length);
+  }).filter(h=>h.name || h.number || h.atBats.length || h.extras.length);
   return {hitters};
 }
 async function aiSDK(){
@@ -1746,7 +1755,7 @@ function commitImport(){
   if(IMP.team==='__new'){
     team = blankTeam(IMP.newName.trim()); team.players = []; S.teams.push(team); touch(team);
   }
-  let addedAB = 0, addedP = 0, updated = 0; const madeNow = {};
+  let addedAB = 0, addedP = 0, updated = 0, addedX = 0; const madeNow = {};
   IMP.photos.forEach(ph=>(ph.result?ph.result.hitters:[]).forEach(h=>{
     if(!h.include) return;
     let p = h.target!=='new' ? team.players.find(x=>x.id===h.target) : null;
@@ -1770,10 +1779,11 @@ function commitImport(){
     if(h.throws) p.throws = h.throws;
     if(h.notes && !p.notes.includes(h.notes)) p.notes = p.notes ? p.notes + '\n' + h.notes : h.notes;
     h.atBats.forEach(a=>{ const c = {...a}; delete c.n; c.id = uid(); p.abs.push(c); addedAB++; });
+    if(h.extras && h.extras.length){ p.sprays = (p.sprays||[]).concat(h.extras.map(m=>({...m, id:uid()}))); addedX += h.extras.length; }
   }));
   S.teamId = team.id; team.cur = null; team.curAB = null;
   IMP.stage = 'done'; S.tab = 'chart'; save(); render(); scrollTo(0,0);
-  setTimeout(()=>alert(`Imported ${addedAB} at-bat${addedAB===1?'':'s'}: ${addedP} new hitter${addedP===1?'':'s'}${updated?`, ${updated} existing hitter${updated===1?'':'s'} updated`:''}.\n\nLook them over and fix anything that was misread.`),50);
+  setTimeout(()=>alert(`Imported ${addedAB} at-bat${addedAB===1?'':'s'}: ${addedP} new hitter${addedP===1?'':'s'}${updated?`, ${updated} existing hitter${updated===1?'':'s'} updated`:''}${addedX?`, plus ${addedX} spray line${addedX===1?'':'s'} not tied to an at-bat`:''}.\n\nLook them over and fix anything that was misread.`),50);
 }
 $('#app').addEventListener('change', e=>{
   const t = e.target;
@@ -1923,6 +1933,7 @@ async function exportPDF(btn){
       [[252.5,242.5],[200,192.5],[147.5,242.5]].forEach(([bx,by])=>
         path('M0,-4 L4,0 L0,4 L-4,0 Z',fx+bx*sc,fy+by*sc,1,{color:C.white}));
       path('M196,296 L204,296 L204,300 L200,304 L196,300 Z',fx,fy,sc,{color:C.white});
+      (p.sprays||[]).forEach(m=>mark(m.t,fx+m.x*sc,fy+m.y*sc,'',false,6));
       p.abs.forEach((a,n)=>{ if(a.mark) mark(a.mark.t,fx+a.mark.x*sc,fy+a.mark.y*sc,n+1,isHit(a.result),7.5); });
       // legend
       let ly = fy+312*sc+6;
