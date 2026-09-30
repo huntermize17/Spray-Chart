@@ -236,7 +236,7 @@ label.lbl{display:block;font-family:var(--head);font-weight:600;font-size:17px;m
 .imptbl th,.imptbl td{border-top:1px solid var(--line);padding:4px 6px;text-align:left;white-space:nowrap}
 .imptbl .swc{width:1.4em;height:1.4em}
 .errdet{margin-top:6px;font-size:13px}.errdet summary{cursor:pointer;color:var(--muted)}
-.errdet code{display:block;white-space:pre-wrap;word-break:break-word;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:8px;margin-top:4px;user-select:all}
+.errdet code{max-height:260px;overflow:auto;display:block;white-space:pre-wrap;word-break:break-word;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:8px;margin-top:4px;user-select:all}
 .teamlist{border-top:1px solid var(--line)}
 .teamrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 6px;border-bottom:1px solid var(--line)}
 .teamrow.on{background:var(--active);border-radius:6px}
@@ -814,7 +814,7 @@ if(navigator.storage && navigator.storage.persist) navigator.storage.persist().c
 /* ---------- cloud sync (Firebase: Google sign-in + Firestore) ---------- */
 const FB_VER = '12.18.0';
 // tried in order; if a model name isn't available to this project, the next one is used
-const AI_MODELS = ['gemini-3.8-flash','gemini-3.6-flash','gemini-3-flash','gemini-2.5-flash'];
+const AI_MODELS = ['gemini-3.8-flash','gemini-3.8-flash-lite','gemini-3.6-flash'];
 const DEVICE = (()=>{ try{ let d=localStorage.getItem('sprayChart.device'); if(!d){ d=uid()+uid(); localStorage.setItem('sprayChart.device',d);} return d; }catch(e){ return uid(); } })();
 const cloud = {ready:false, loading:!!FIREBASE_CONFIG || CAN_FETCH_CONFIG, user:null, status:'off', err:'', firstSnap:false,
   settingsLoaded:false, settingsAt:0, remoteAt:{}, remoteData:{}, lastSync:0, timer:null, unsub:[], hist:null};
@@ -1470,7 +1470,7 @@ function aiWait(sec){ aiWaitNote = sec ? `Google asked to wait ${sec} seconds, r
 async function aiGenerate(parts){
   const {AI, ai} = await aiSDK();
   let start = 0; try{ start = Math.max(0, AI_MODELS.indexOf(localStorage.getItem('sprayChart.aiModel'))); }catch(e){}
-  let last, isBusyFallback = false;
+  let last, isBusyFallback = false; const tries = [];
   for(let k=start; k<AI_MODELS.length; k++){
     const model = AI.getGenerativeModel(ai, {model: AI_MODELS[k], generationConfig:{responseMimeType:'application/json', temperature:0.1}});
     // a busy model gets two quick retries, then the next model is tried
@@ -1481,6 +1481,7 @@ async function aiGenerate(parts){
         return res;
       }catch(e){
         last = e; console.error(AI_MODELS[k], e);
+        if(attempt===0 || !isBusy(e)) tries.push({model:AI_MODELS[k], e});
         if(isBusy(e)){ if(attempt<2){ await new Promise(r=>setTimeout(r, attempt ? 6000 : 2500)); continue; } isBusyFallback = true; break; }
         if(isQuota(e)){
           if(noFreeTier(e)) break;            // this model isn't free here: use (and remember) the next one
@@ -1492,7 +1493,11 @@ async function aiGenerate(parts){
       }
     }
   }
-  throw last;
+  // report the most useful error: the first one that isn't just "this model name doesn't exist"
+  const main = (tries.find(t=>!isModelMissing(t.e)) || tries[0] || {e:last}).e;
+  const err = new Error(errText(main));
+  err.detailAll = tries.map(t=>`${t.model}: ${errText(t.e)}`).join('\n\n');
+  throw err;
 }
 function aiErr(e){
   const m = errText(e);
@@ -1508,6 +1513,7 @@ function aiErr(e){
   else if(/api-not-enabled|SERVICE_DISABLED|has not been used|it is disabled/i.test(m))
     msg = 'Firebase says the AI service is still off for this project. If you just turned on AI Logic, wait about 5 minutes and try again. If it still fails, open AI Logic in the Firebase console and make sure it shows the Gemini Developer API as set up (not only the Get started screen).';
   else if(isBusy(e)) msg = "Google's photo reader is overloaded right now. That's on Google's end and usually clears up in a few minutes. Tap Try again in a bit.";
+  else if(noFreeTier(e)) msg = "Google says this project has no free allowance for the Gemini model the app uses. The Firebase free (Spark) plan may not cover it. Send me the error details below and I'll tell you the options.";
   else if(isQuota(e)) msg = /per ?day|PerDay|daily/i.test(m)
       ? "Google's free daily limit for photo reading is used up on this project. It resets each day (around midnight Pacific time)."
       : "Google's free limit for photo reading was hit, even after waiting and trying other models. Wait a few minutes and tap Try again. If it keeps happening, send me the error details below.";
@@ -1515,7 +1521,7 @@ function aiErr(e){
   else if(/JSON|chart data/i.test(m)) msg = 'The photo could not be read clearly. Try a sharper, straight-on photo.';
   else if(isModelMissing(e)) msg = 'None of the Gemini models the app tries are available to this project.';
   else msg = 'Could not read this photo.';
-  return {msg, detail: m.slice(0,600)};
+  return {msg, detail: (e && e.detailAll) || m.slice(0,600)};
 }
 async function readPhotos(){
   if(IMP.busy) return;
