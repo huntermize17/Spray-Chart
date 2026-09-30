@@ -320,7 +320,7 @@ function scoutBox(p){
     <div class="scrow"><span class="sclab">Runner</span>
       ${RUNNER.map(([v,l,c])=>ck('runner',v,p.runner===v,l,'',c)).join('')}</div>
     <div class="scrow flags">
-      ${ck('fps','1',!!p.fps,'First pitch swing')}${ck('sac','1',!!p.sac,'Sac')}${ck('drag','1',!!p.drag,'Drag')}</div>
+      ${ck('fps','1',!!p.fps,'First pitch swinger')}${ck('sac','1',!!p.sac,'Will sac')}${ck('drag','1',!!p.drag,'Will drag')}</div>
   </div>`;
 }
 function fieldSVG(p){
@@ -711,7 +711,7 @@ async function exportPDF(btn){
       text(fit(nm,bold,22,330),M,M+18,22,bold);
       const meta = [`Batting ${i+1}`, p.pos&&`Pos ${p.pos}`, p.bats&&`Bats ${p.bats}`, p.throws&&`Throws ${p.throws}`].filter(Boolean).join('   ');
       text(meta,W-M-reg.widthOfTextAtSize(clean(meta),11),M+16,11,reg,C.muted);
-      const flags = [p.fps&&'First pitch swing', p.sac&&'Sac', p.drag&&'Drag'].filter(Boolean);
+      const flags = [p.fps&&'First pitch swinger', p.sac&&'Will sac', p.drag&&'Will drag'].filter(Boolean);
       const rn = RUNNER.find(r=>r[0]===p.runner);
       let fxr = W-M;
       const fl = flags.join('    ');
