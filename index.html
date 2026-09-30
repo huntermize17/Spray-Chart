@@ -220,6 +220,16 @@ label.lbl{display:block;font-family:var(--head);font-weight:600;font-size:17px;m
 [data-theme="sun"] .ck{font-weight:700}
 .bkh{font-family:var(--head);font-size:24px;margin:0 0 6px}
 .filebtn{display:inline-flex;align-items:center;cursor:pointer}
+.seg{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.seg button{flex:1;min-width:150px;border:2px solid var(--line);background:var(--card);border-radius:8px;padding:8px 12px;font-family:var(--head);font-weight:700;font-size:18px;text-align:left}
+.seg button small{display:block;font-family:var(--body);font-weight:500;font-size:13px;color:var(--muted)}
+.seg button[aria-pressed="true"]{border-color:var(--ink);background:var(--active)}
+.csteps{margin:0;padding-left:22px}
+.csteps li{margin:0 0 14px;line-height:1.5}
+.csteps textarea{display:block;width:100%;min-height:120px;margin-top:8px;border:1.5px solid var(--line);border-radius:6px;padding:8px;background:var(--card);font-family:ui-monospace,Menlo,monospace;font-size:13px}
+.linkbtn{display:inline-block;text-decoration:none;color:inherit;font-weight:600;margin-right:6px}
+#promptFallback{width:100%;min-height:120px;margin-top:8px}
+.claudeicon{width:48px;height:48px;border-radius:8px;display:grid;place-items:center;background:#D97757;color:#fff;font-size:26px;flex:none}
 .imgcard{border-top:1px solid var(--line);padding:10px 0}
 .imghead{display:flex;align-items:center;gap:10px}
 .imghead img{width:64px;height:64px;object-fit:cover;border-radius:6px;border:1.5px solid var(--line)}
@@ -1345,47 +1355,79 @@ function autoMatch(h, team){
   if(!m && num) m = team.players.find(p=>String(p.num).trim()===num);
   return m ? m.id : 'new';
 }
+function impMethod(){ try{ return localStorage.getItem('sprayChart.importMethod') || 'claude'; }catch(e){ return 'claude'; } }
 function renderImport(){
-  const cfgOk = !!FIREBASE_CONFIG;
+  const cfgOk = !!FIREBASE_CONFIG, method = impMethod();
   const team = impTeam();
   const teamOpts = S.teams.map((t,i)=>`<option value="${t.id}" ${IMP.team===t.id?'selected':''}>${esc(tName(t,i))}</option>`).join('')
     + `<option value="__new" ${IMP.team==='__new'?'selected':''}>+ Create a new team</option>`;
-  const photos = IMP.photos.map((ph,i)=>{
-    const r = ph.result;
+  const list = IMP.photos.filter(ph=>(ph.kind||'photo')===(method==='claude'?'paste':'photo'));
+  const cards = list.map(ph=>{
+    const i = IMP.photos.indexOf(ph), r = ph.result;
     let body = '';
     if(ph.status==='error') body = `<p class="bkstatus warn">${esc(ph.err.msg||ph.err)}</p>${ph.err.detail?`<details class="errdet"><summary>Error details (send these to get help)</summary><code>${esc(ph.err.detail)}</code></details>`:''}`;
-    if(r) body = r.hitters.length ? r.hitters.map((h,j)=>hitterReview(h,i,j,team)).join('') : `<p class="hint">No hitters or at-bats were found in this photo.</p>`;
-    return `<div class="imgcard">
-      <div class="imghead"><img src="${ph.url}" alt="Photo ${i+1}"><div><b>Photo ${i+1}</b><br><small class="st-${ph.status}">${impStatus(ph)}</small></div>
+    if(r) body = r.hitters.length ? r.hitters.map((h,j)=>hitterReview(h,i,j,team)).join('') : `<p class="hint">No hitters or at-bats were found.</p>`;
+    const n = list.indexOf(ph)+1;
+    const head = ph.kind==='paste'
+      ? `<span class="claudeicon" aria-hidden="true">✳</span><div><b>Claude results ${n}</b><br><small class="st-done">${r?`${r.hitters.length} hitter${r.hitters.length===1?'':'s'} found`:''}</small></div>`
+      : `<img src="${ph.url}" alt="Photo ${n}"><div><b>Photo ${n}</b><br><small class="st-${ph.status}">${impStatus(ph)}</small></div>`;
+    return `<div class="imgcard"><div class="imghead">${head}
         ${IMP.busy?'':`<span class="imgacts">${ph.status==='error'?`<button class="ghost" data-impretry="${i}">Try again</button>`:''}<button class="iconbtn" data-imprm="${i}">Remove</button></span>`}</div>
       ${body}</div>`;
   }).join('');
-  const waiting = IMP.photos.filter(p=>p.status==='wait'||p.status==='error').length;
-  const ready = IMP.photos.some(p=>p.result && p.result.hitters.some(h=>h.include));
+  const waiting = list.filter(p=>p.status==='wait'||p.status==='error').length;
+  const ready = list.some(p=>p.result && p.result.hitters.some(h=>h.include));
+  const teamLabel = esc(IMP.team==='__new' ? (IMP.newName||'the new team') : tName(team, S.teams.indexOf(team)));
+
+  const claudeSteps = `
+      <ol class="csteps">
+        <li><button class="primary" id="impCopy">Copy instructions</button> <span class="hint" id="copyNote" style="margin:0"></span></li>
+        <li><a class="ghost linkbtn" href="https://claude.ai/new" target="_blank" rel="noopener">Open Claude</a> Start a new chat, paste the instructions, attach your spray chart photos, and send. You can attach several sheets at once.</li>
+        <li>When Claude answers, tap the copy button on its code block, then paste it here:
+          <textarea id="impPaste" placeholder='Paste what Claude sent back (it starts with {"hitters":...)'>${esc(IMP.pasteText||'')}</textarea>
+          <div class="btnrow"><button class="primary" id="impUsePaste">Read pasted results</button></div>
+          ${IMP.pasteErr?`<p class="bkstatus warn" style="margin-top:8px">${esc(IMP.pasteErr)}</p>`:''}
+        </li>
+      </ol>
+      <textarea id="promptFallback" readonly hidden>${esc(claudePrompt())}</textarea>`;
+  const googleSteps = !cfgOk
+    ? (cloud.loading ? `<p class="hint" style="margin:0">Checking Firebase settings...</p>` : `<p class="bkstatus warn">${FIREBASE_PROBLEM ? esc(FIREBASE_PROBLEM) : 'Reading with Google needs your Firebase settings in a file named <b>firebase-config.txt</b> next to index.html (the Backup tab explains how).'}</p>`)
+    : `<div class="btnrow" style="margin-top:0"><label class="primary filebtn">Take or choose photos<input type="file" id="impFiles" accept="image/*" multiple hidden ${IMP.busy?'disabled':''}></label></div>
+       <p class="hint">Get the whole sheet in frame, straight on, in good light. Google's free plan only allows a limited number of reads per day.</p>`;
+
   $('#app').innerHTML = `
-    <div class="batter" style="margin-top:0"><button class="navbtn" id="impBack">Back</button><div class="who"><h2>Import from photos</h2><p>Snap or pick pictures of paper spray charts and they are read into the app.</p></div></div>
-    ${!cfgOk ? `<div class="panel">${cloud.loading ? `<p class="hint" style="margin:0">Checking Firebase settings...</p>` : `<p class="bkstatus warn">${FIREBASE_PROBLEM ? esc(FIREBASE_PROBLEM) : 'Photo import uses your Firebase project, and the app could not find its settings. Add a file named <b>firebase-config.txt</b> to your GitHub repo next to index.html with your Firebase code in it (the Backup tab explains how), then reload.'}</p>`}</div>` : `
+    <div class="batter" style="margin-top:0"><button class="navbtn" id="impBack">Back</button><div class="who"><h2>Import from photos</h2><p>Turn paper spray charts into at-bats in the app.</p></div></div>
     <div class="panel">
       <label class="lbl" style="margin-top:0" for="impTeam">1. Which team?</label>
       <select id="impTeam" class="ghost" style="width:100%;max-width:420px" ${IMP.busy?'disabled':''}>${teamOpts}</select>
       ${IMP.team==='__new'?`<input id="impNew" class="ghost" style="width:100%;max-width:420px;margin-top:8px" placeholder="New team name" value="${esc(IMP.newName)}">`:''}
-      <label class="lbl">2. Add photos</label>
-      <div class="btnrow" style="margin-top:0">
-        <label class="primary filebtn">Take or choose photos<input type="file" id="impFiles" accept="image/*" multiple hidden ${IMP.busy?'disabled':''}></label>
+      <label class="lbl">2. Read the sheets with</label>
+      <div class="seg" role="group" aria-label="How to read the sheets">
+        <button data-method="claude" aria-pressed="${method==='claude'}">Claude <small>free, copy and paste</small></button>
+        <button data-method="google" aria-pressed="${method==='google'}">Google <small>automatic, daily limit</small></button>
       </div>
-      <p class="hint">Pick one photo or many at once. Get the whole sheet in frame, straight on, in good light. One or two hitters per photo works best.</p>
+      ${method==='claude' ? claudeSteps : googleSteps}
     </div>
-    ${IMP.photos.length?`
+    ${list.length?`
     <div class="panel" style="margin-top:16px">
-      <div class="abhead"><h3>3. Read the photos</h3>
-        ${waiting && !IMP.busy ? `<button class="primary" id="impRead">Read ${waiting} photo${waiting===1?'':'s'}</button>` : IMP.busy ? `<span class="hint" style="margin:0">Reading... keep this screen open</span>` : ''}</div>
-      ${photos}
+      <div class="abhead"><h3>3. Check what was read</h3>
+        ${method==='google' ? (waiting && !IMP.busy ? `<button class="primary" id="impRead">Read ${waiting} photo${waiting===1?'':'s'}</button>` : IMP.busy ? `<span class="hint" style="margin:0">Reading... keep this screen open</span>` : '') : ''}</div>
+      ${cards}
     </div>
     ${ready && !IMP.busy ? `<div class="panel" style="margin-top:16px">
-      <h3 class="tendh" style="margin-top:0">4. Add to ${esc(IMP.team==='__new' ? (IMP.newName||'the new team') : tName(team, S.teams.indexOf(team)))}</h3>
-      <p class="hint" style="margin-top:0">Check what was read above. You can fix anything later on the Chart tab. Pitch order isn't on paper, so imported at-bats don't count toward 1st pitch swing/take.</p>
-      <div class="btnrow"><button class="primary" id="impCommit">Add to team</button></div></div>` : ''}` : ''}`}
+      <h3 class="tendh" style="margin-top:0">4. Add to ${teamLabel}</h3>
+      <p class="hint" style="margin-top:0">Check names, bats, runner and at-bats above. You can fix anything later on the Chart tab.</p>
+      <div class="btnrow"><button class="primary" id="impCommit">Add to team</button></div></div>` : ''}` : ''}
   `;
+}
+function claudePrompt(){
+  return `I'm attaching photos of my handwritten baseball spray chart sheets. Please read them and send back the data exactly as described below, so I can paste it into my spray chart app.
+
+If I attach more than one photo, put every hitter from every photo into the one "hitters" list. If the same hitter appears on two photos, list him once and include all of his at-bats.
+
+Put your whole answer in a single code block containing only the JSON, with no other text inside the code block.
+
+` + aiPrompt();
 }
 function hitterReview(h,i,j,team){
   const nAB = h.atBats.length, nMark = h.atBats.filter(a=>a.mark).length;
@@ -1555,7 +1597,9 @@ const errText = e => String((e && (e.message || e.code)) || e || '');
 const isBusy = e => /high demand|overloaded|UNAVAILABLE|\[50[03] \]|\b50[03]\b|try again later/i.test(errText(e));
 const isQuota = e => /quota|\b429\b|\[429 \]|RESOURCE_EXHAUSTED|rate limit/i.test(errText(e));
 // "limit: 0" means this model has no free allowance on this project at all
-const noFreeTier = e => /limit:\s*0\b|free_tier[^]*limit:\s*0|not available on the free tier|billing/i.test(errText(e));
+const noFreeTier = e => /limit:\s*0\b|not available on the free tier/i.test(errText(e));
+const quotaLimit = e => { const m = errText(e).match(/limit:\s*(\d+)/i); return m ? +m[1] : null; };
+const perDay = e => /per ?day|PerDay|daily/i.test(errText(e));
 const retrySecs = e => { const m = errText(e).match(/retry(?:Delay)?[^0-9]{0,20}([0-9.]+)\s*s/i); return m ? Math.min(40, Math.ceil(+m[1])+1) : 15; };
 const isModelMissing = e => /not found|404|is not supported|unknown model|does not exist|NOT_FOUND/i.test(errText(e)) && !/SERVICE_DISABLED|has not been used/i.test(errText(e));
 let aiWaitNote = '';
@@ -1577,7 +1621,8 @@ async function aiGenerate(parts){
         if(attempt===0 || !isBusy(e)) tries.push({model:AI_MODELS[k], e});
         if(isBusy(e)){ if(attempt<2){ await new Promise(r=>setTimeout(r, attempt ? 6000 : 2500)); continue; } isBusyFallback = true; break; }
         if(isQuota(e)){
-          if(noFreeTier(e)) break;            // this model isn't free here: use (and remember) the next one
+          if(noFreeTier(e)) break;
+          if(perDay(e)) throw Object.assign(new Error(errText(e)), {detailAll: tries.map(t=>`${t.model}: ${errText(t.e)}`).join('\n\n')});            // this model isn't free here: use (and remember) the next one
           if(attempt<1){ aiWait(retrySecs(e)); await new Promise(r=>setTimeout(r, retrySecs(e)*1000)); aiWait(0); continue; }
           isBusyFallback = true; break;                                  // still limited: try the next model
         }
@@ -1606,10 +1651,11 @@ function aiErr(e){
   else if(/api-not-enabled|SERVICE_DISABLED|has not been used|it is disabled/i.test(m))
     msg = 'Firebase says the AI service is still off for this project. If you just turned on AI Logic, wait about 5 minutes and try again. If it still fails, open AI Logic in the Firebase console and make sure it shows the Gemini Developer API as set up (not only the Get started screen).';
   else if(isBusy(e)) msg = "Google's photo reader is overloaded right now. That's on Google's end and usually clears up in a few minutes. Tap Try again in a bit.";
-  else if(noFreeTier(e)) msg = "Google says this project has no free allowance for the Gemini model the app uses. The Firebase free (Spark) plan may not cover it. Send me the error details below and I'll tell you the options.";
-  else if(isQuota(e)) msg = /per ?day|PerDay|daily/i.test(m)
-      ? "Google's free daily limit for photo reading is used up on this project. It resets each day (around midnight Pacific time)."
-      : "Google's free limit for photo reading was hit, even after waiting and trying other models. Wait a few minutes and tap Try again. If it keeps happening, send me the error details below.";
+  else if(noFreeTier(e)) msg = "Google says this project has no free allowance for the Gemini model the app uses. Upgrading Firebase to the Blaze (pay-as-you-go) plan turns it on.";
+  else if(isQuota(e) && perDay(e)){ const n = quotaLimit(e);
+    msg = `Today's free photo reads are used up${n?` (Google allows ${n} a day on the free plan)`:''}. They reset each day around midnight Pacific time. To read more today, upgrade Firebase to the Blaze (pay-as-you-go) plan.`; }
+  else if(isQuota(e)){ const n = quotaLimit(e);
+    msg = `Google's free plan only allows ${n?`${n} photo reads`:'a few photo reads'} per minute, and that was hit. Wait a minute, then tap Try again. When reading several photos, the app goes one at a time.`; }
   else if(/Failed to fetch|NetworkError|network/i.test(m)) msg = 'No internet connection. Try again when you have signal.';
   else if(/JSON|chart data/i.test(m)) msg = 'The photo could not be read clearly. Try a sharper, straight-on photo.';
   else if(isModelMissing(e)) msg = 'None of the Gemini models the app tries are available to this project.';
@@ -1637,20 +1683,49 @@ async function readPhotos(){
   }
   IMP.busy = false; render();
 }
+async function copyPrompt(){
+  const text = claudePrompt(), note = $('#copyNote');
+  let ok = false;
+  try{ await navigator.clipboard.writeText(text); ok = true; }catch(e){}
+  if(!ok){
+    const ta = $('#promptFallback'); ta.hidden = false; ta.focus(); ta.select();
+    try{ ok = document.execCommand('copy'); }catch(e){}
+    if(!ok){ if(note) note.textContent = 'Select all of the text below and copy it.'; return; }
+    ta.hidden = true;
+  }
+  if(note){ note.textContent = 'Copied! Now open Claude and paste it.'; note.style.color = '#2F8F5B'; note.style.fontWeight = '600'; }
+}
+function usePaste(){
+  const text = (IMP.pasteText||'').trim();
+  if(!text){ IMP.pasteErr = 'Paste what Claude sent back into the box first.'; render(); return; }
+  try{
+    const result = parseAI(text, impTeam());
+    if(!result.hitters.length){ IMP.pasteErr = 'No hitters were found in what you pasted. Make sure you copied Claude\'s whole code block.'; render(); return; }
+    IMP.photos.push({kind:'paste', status:'done', result});
+    IMP.pasteText = ''; IMP.pasteErr = ''; IMP.stage = 'pick';
+    render();
+    setTimeout(()=>{ const c = document.querySelectorAll('.imgcard'); if(c.length) c[c.length-1].scrollIntoView({behavior:'smooth', block:'start'}); }, 50);
+  }catch(e){
+    IMP.pasteErr = "That doesn't look like Claude's chart data. Copy the whole code block Claude sent (use its copy button) and paste again. If Claude's answer got cut off, ask it to continue and paste the full thing.";
+    render();
+  }
+}
 function commitImport(){
   let team = impTeam();
   if(IMP.team==='__new'){
     team = blankTeam(IMP.newName.trim()); team.players = []; S.teams.push(team); touch(team);
   }
-  let addedAB = 0, addedP = 0, updated = 0;
+  let addedAB = 0, addedP = 0, updated = 0; const madeNow = {};
   IMP.photos.forEach(ph=>(ph.result?ph.result.hitters:[]).forEach(h=>{
     if(!h.include) return;
     let p = h.target!=='new' ? team.players.find(x=>x.id===h.target) : null;
-    if(!p){
+    const key = (h.number||'') + '|' + (h.name||'').toLowerCase().replace(/[^a-z]/g,'');
+    if(!p && madeNow[key]) p = madeNow[key];
+    else if(!p){
       // reuse an empty lineup spot before adding a new one
       p = team.players.find(x=>!x.name.trim() && !x.num && !x.abs.length);
       if(!p){ p = blankPlayer(); team.players.push(p); }
-      addedP++;
+      addedP++; if(key!=='|') madeNow[key] = p;
     } else updated++;
     if(!p.name.trim()) p.name = h.name;
     if(!p.num) p.num = h.number;
@@ -1690,12 +1765,16 @@ $('#app').addEventListener('change', e=>{
 $('#app').addEventListener('input', e=>{
   const t = e.target;
   if(t.id==='impNew'){ IMP.newName = t.value; return; }
+  if(t.id==='impPaste'){ IMP.pasteText = t.value; IMP.pasteErr = ''; return; }
   const key = t.dataset.hname || t.dataset.hnum;
   if(key){ const [i,j] = key.split(':').map(Number), h = IMP.photos[i].result.hitters[j]; if(t.dataset.hname) h.name = t.value; else h.number = t.value; }
 });
 $('#app').addEventListener('click', e=>{
-  const el = e.target.closest && e.target.closest('#impBack,#impRead,#impCommit,[data-imprm],[data-impretry]');
+  const el = e.target.closest && e.target.closest('#impBack,#impRead,#impCommit,[data-imprm],[data-impretry],[data-method],#impCopy,#impUsePaste');
   if(!el) return;
+  if(el.dataset.method){ try{ localStorage.setItem('sprayChart.importMethod', el.dataset.method); }catch(err){} render(); return; }
+  if(el.id==='impCopy'){ copyPrompt(); return; }
+  if(el.id==='impUsePaste'){ usePaste(); return; }
   if(el.id==='impBack'){ S.tab = 'lineup'; render(); return; }
   if(el.id==='impRead'){ readPhotos(); return; }
   if(el.id==='impCommit'){
