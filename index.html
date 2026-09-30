@@ -1459,18 +1459,27 @@ async function aiSDK(){
   return cloud.aiSDK;
 }
 const errText = e => String((e && (e.message || e.code)) || e || '');
+const isBusy = e => /high demand|overloaded|UNAVAILABLE|\[50[03] \]|\b50[03]\b|try again later/i.test(errText(e));
 const isModelMissing = e => /not found|404|is not supported|unknown model|does not exist|NOT_FOUND/i.test(errText(e)) && !/SERVICE_DISABLED|has not been used/i.test(errText(e));
 async function aiGenerate(parts){
   const {AI, ai} = await aiSDK();
   let start = 0; try{ start = Math.max(0, AI_MODELS.indexOf(localStorage.getItem('sprayChart.aiModel'))); }catch(e){}
-  let last;
+  let last, isBusyFallback = false;
   for(let k=start; k<AI_MODELS.length; k++){
     const model = AI.getGenerativeModel(ai, {model: AI_MODELS[k], generationConfig:{responseMimeType:'application/json', temperature:0.1}});
-    try{
-      const res = await model.generateContent(parts);
-      try{ localStorage.setItem('sprayChart.aiModel', AI_MODELS[k]); }catch(e){}
-      return res;
-    }catch(e){ last = e; console.error(AI_MODELS[k], e); if(!isModelMissing(e)) throw e; }
+    // a busy model gets two quick retries, then the next model is tried
+    for(let attempt=0; attempt<3; attempt++){
+      try{
+        const res = await model.generateContent(parts);
+        if(!isBusyFallback) try{ localStorage.setItem('sprayChart.aiModel', AI_MODELS[k]); }catch(e){}
+        return res;
+      }catch(e){
+        last = e; console.error(AI_MODELS[k], e);
+        if(isBusy(e)){ if(attempt<2){ await new Promise(r=>setTimeout(r, attempt ? 6000 : 2500)); continue; } isBusyFallback = true; break; }
+        if(isModelMissing(e)) break;
+        throw e;
+      }
+    }
   }
   throw last;
 }
@@ -1487,6 +1496,7 @@ function aiErr(e){
     msg = 'Firebase says the API key is not valid. Copy the code from Firebase Project settings into firebase-config.txt again.';
   else if(/api-not-enabled|SERVICE_DISABLED|has not been used|it is disabled/i.test(m))
     msg = 'Firebase says the AI service is still off for this project. If you just turned on AI Logic, wait about 5 minutes and try again. If it still fails, open AI Logic in the Firebase console and make sure it shows the Gemini Developer API as set up (not only the Get started screen).';
+  else if(isBusy(e)) msg = "Google's photo reader is overloaded right now. That's on Google's end and usually clears up in a few minutes. Tap Try again in a bit.";
   else if(/quota|429|RESOURCE_EXHAUSTED/i.test(m)) msg = 'Too many photos at once for the free tier. Wait a minute, then tap Try again.';
   else if(/Failed to fetch|NetworkError|network/i.test(m)) msg = 'No internet connection. Try again when you have signal.';
   else if(/JSON|chart data/i.test(m)) msg = 'The photo could not be read clearly. Try a sharper, straight-on photo.';
