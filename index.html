@@ -234,6 +234,8 @@ label.lbl{display:block;font-family:var(--head);font-weight:600;font-size:17px;m
 .hrevtop input:not([type]){border:1.5px solid var(--line);border-radius:6px;padding:6px 8px;background:var(--card);font-weight:600}
 .hrevmid{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin-top:6px}
 .hrevmid select{max-width:100%}
+.minisel{display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:14px}
+.minisel select{border:1.5px solid var(--line);border-radius:6px;padding:4px 6px;background:var(--card)}
 .hrev details{margin-top:6px}
 .hrev summary{cursor:pointer;font-weight:600;font-size:14px}
 .tblwrap{overflow-x:auto}
@@ -1400,8 +1402,13 @@ function hitterReview(h,i,j,team){
       <input class="hname" data-hname="${i}:${j}" value="${esc(h.name)}" placeholder="Hitter name" aria-label="Hitter name">
       <input class="hnum" data-hnum="${i}:${j}" value="${esc(h.number)}" placeholder="#" aria-label="Number">
     </div>
+    <div class="hrevmid">
+      <label class="minisel">Bats <select data-hbats="${i}:${j}">${['','R','L','S'].map(v=>`<option value="${v}" ${h.bats===v?'selected':''}>${v||'–'}</option>`).join('')}</select></label>
+      <label class="minisel">Runner <select data-hrun="${i}:${j}">${[['','–'],['green','Green'],['yellow','Yellow'],['red','Red']].map(([v,l])=>`<option value="${v}" ${h.runner===v?'selected':''}>${l}</option>`).join('')}</select></label>
+      ${h.runner?`<i class="rdot" style="background:${RUNNER.find(r=>r[0]===h.runner)[2]}"></i>`:''}
+    </div>
     <div class="hrevmid"><select data-htarget="${i}:${j}" class="ghost">${opts}</select>
-      <span class="hint" style="margin:0">${nAB} at-bat${nAB===1?'':'s'}, ${nMark} spray mark${nMark===1?'':'s'}${h.bats?`, bats ${h.bats}`:''}</span></div>
+      <span class="hint" style="margin:0">${nAB} at-bat${nAB===1?'':'s'}, ${nMark} spray mark${nMark===1?'':'s'}</span></div>
     ${nAB?`<details><summary>See at-bats</summary><div class="tblwrap"><table class="imptbl"><thead><tr><th>#</th><th>Balls</th><th>Strikes</th><th>Result</th><th>Hit</th></tr></thead><tbody>${rows}</tbody></table></div></details>`:''}
   </div>`;
 }
@@ -1410,7 +1417,7 @@ async function photoToJpeg(file){
   const url = URL.createObjectURL(file);
   try{
     const img = await new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=()=>rej(new Error('That file could not be opened as a picture.')); im.src=url; });
-    const max = 2400, sc = Math.min(1, max/Math.max(img.naturalWidth, img.naturalHeight));
+    const max = 3072, sc = Math.min(1, max/Math.max(img.naturalWidth, img.naturalHeight));
     const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth*sc); c.height = Math.round(img.naturalHeight*sc);
     c.getContext('2d').drawImage(img,0,0,c.width,c.height);
     return c.toDataURL('image/jpeg',0.85).split(',')[1];
@@ -1419,7 +1426,7 @@ async function photoToJpeg(file){
 function aiPrompt(){
   return `You are reading a photo of a handwritten baseball spray chart sheet. Extract every hitter and every at-bat you can read.
 
-Sheet layout: each hitter section has a header with the hitter's name and jersey number (sometimes position, bats R/L/S, throws R/L), a notes area, a drawing of a baseball field, and a table of numbered at-bat rows. Each at-bat row has a "B" line of small boxes for balls and an "S" line of small boxes for strikes, and a Result column. Each filled box holds a pitch type number 1-5 (${S.pitches.map((n,i)=>`${i+1}=${n}`).join(', ')}). In the S boxes, a number with a circle drawn around it means the batter swung at that pitch; an uncircled number is a called strike (take).
+Sheet layout: each hitter section has a header with the hitter's name, jersey number, team and position, then the printed choices "Bats: R / L / S" and "Throws: R / L", then a notes area, a drawing of a baseball field, and a table of numbered at-bat rows. Each at-bat row has a "B" line of small boxes for balls and an "S" line of small boxes for strikes, and a Result column. Each filled box holds a pitch type number 1-5 (${S.pitches.map((n,i)=>`${i+1}=${n}`).join(', ')}). In the S boxes, a number with a circle drawn around it means the batter swung at that pitch; an uncircled number is a called strike (take). The B and S boxes are lined up in columns, and the column position matters: many coaches chart pitch-by-pitch, so column 1 is the first pitch, column 2 the second, and so on, with the mark in the B line if it was a ball or the S line if it was a strike. Report each box's column exactly as it sits on the sheet, even if there are gaps.
 
 On the field drawing, each ball in play is usually drawn as a LINE starting at home plate and ending where the ball landed or was fielded. The line style tells the kind of hit:
 - dotted or dashed line = ground ball (GB)
@@ -1428,20 +1435,37 @@ On the field drawing, each ball in play is usually drawn as a LINE starting at h
 The at-bat number is usually written near the end of the line. Some sheets instead use shapes: square = ground ball, circle = fly ball, triangle = line drive, with the at-bat number inside or beside the shape. Look carefully at every line on the field; there is usually one for each ball put in play.
 
 Return ONLY JSON, no other text, in exactly this shape:
-{"hitters":[{"name":"","number":"","position":"","bats":"","throws":"","notes":"","atBats":[{"n":1,"balls":[1,2],"strikes":[{"pitch":1,"swung":false}],"result":"6-3"}],"sprays":[{"ab":1,"hitType":"GB","angle":-20,"depth":0.4}]}]}
+{"hitters":[{"name":"","number":"","position":"","bats":"","throws":"","runner":"","notes":"","atBats":[{"n":1,"pitches":[{"row":"S","col":1,"pitch":1,"swung":false},{"row":"B","col":2,"pitch":2},{"row":"B","col":3,"pitch":1}],"result":"6-3"}],"sprays":[{"ab":1,"hitType":"GB","angle":-20,"depth":0.4}]}]}
 
 Rules:
 - "n" is the at-bat number printed on the row. Skip rows with nothing written in them.
-- "balls": pitch numbers in the B boxes, left to right. "strikes": pitch numbers in the S boxes, left to right, with swung true only when circled.
+- "pitches": one entry per filled box. "row" is "B" or "S". "col" is the box's column counted from the left starting at 1, measured the same way for both lines (a B box and the S box directly below it have the same col). "pitch" is the number 1-5 in it. "swung" is true only for a circled number in the S line.
 - "result": copy exactly what is written (like 1B, 2B, HR, BB, K, 6-3, F8, L6, P4). Empty string if blank.
 - "sprays": one entry for EVERY line or shape drawn on that hitter's field. "ab" = the at-bat number written by it (null if you can't tell). "hitType" = "GB", "FB" or "LD" from the line style or shape. "angle" and "depth" describe the END of the line (where the ball went), or the center of the shape. angle in degrees: 0 = straight to center field, negative toward the left field side (-45 = on the left field foul line), positive toward the right field side (+45 = on the right field foul line). depth: 0 = home plate, 0.3 = the bases, 0.45 = the edge of the infield dirt, 0.7 = shallow outfield, 1.0 = the outfield fence.
-- "bats" is "R", "L", "S" or "". "throws" is "R", "L" or "".
+- "bats" and "throws": the letters R, L and S are ALWAYS printed on the form, so never report a letter just because it is printed. Report only the one letter the coach marked by circling, checking, underlining, highlighting, crossing out the others, or writing next to it. Zoom in on that spot and compare the letters carefully before answering. If none is clearly marked, use "".
+- "runner": the hitter's running speed, "green" (fast), "yellow" (average) or "red" (slow). Coaches mark it with color: a green, yellow or red marker, highlighter, dot, sticker, circle or box somewhere in the hitter's section (often near the name or header), or the word or letter written out (Green/Yellow/Red, G/Y). Look at the actual colors in the photo. A red "R" next to "Bats" is not the runner color unless it is clearly a separate speed mark. Use "" if there is no speed mark.
 - If the photo shows more than one hitter, return each one. Never guess or invent values you cannot read; use "" or null instead.`;
 }
 // fielder spots for results like 6-3 or F8 when no shape was drawn
 const FIELDER = {1:[200,247],2:[200,290],3:[246,232],4:[226,200],5:[154,232],6:[174,200],7:[112,118],8:[200,78],9:[288,118]};
 function toAtBat(x){
   const a = blankAB(); a.noSeq = true; let q = 1;
+  if(Array.isArray(x.pitches) && x.pitches.length){
+    const ps = x.pitches.map(p=>({row:String(p.row||'').toUpperCase()==='S'?'s':'b', col:Math.round(+p.col)||0, c:+p.pitch, sw:!!p.swung}))
+      .filter(p=>p.c>=1 && p.c<=5 && p.col>=1);
+    // pitch-by-pitch charting: every column used once, starting at column 1 with no gaps
+    const cols = ps.map(p=>p.col).sort((m,n)=>m-n);
+    const ordered = cols.length && cols.every((c,i)=>c===i+1);
+    ps.sort((m,n)=>m.col-n.col || (m.row==='b'?-1:1));
+    ps.forEach(p=>{
+      let i = Math.min(p.col, BOXES)-1;
+      while(i<BOXES && a[p.row][i]) i++;
+      if(i>=BOXES) return;
+      a[p.row][i] = p.row==='s' ? {c:p.c, q:q++, sw:p.sw} : {c:p.c, q:q++};
+    });
+    if(ordered) delete a.noSeq;       // order is known, so 1st pitch counts like a live at-bat
+    x = {...x, balls:[], strikes:[]};
+  }
   (x.balls||[]).slice(0,BOXES).forEach((c,i)=>{ c=+c; if(c>=1&&c<=5) a.b[i] = {c, q:q++}; });
   (x.strikes||[]).slice(0,BOXES).forEach((st,i)=>{ const c = +(st&&st.pitch!==undefined?st.pitch:st); if(c>=1&&c<=5) a.s[i] = {c, q:q++, sw:!!(st&&st.swung)}; });
   a.result = String(x.result||'').trim().slice(0,20);
@@ -1512,7 +1536,8 @@ function parseAI(text, team){
     const abs = (h.atBats||[]).map(toAtBat).filter(a=>a.result || a.mark || a.b.some(Boolean) || a.s.some(Boolean)).sort((x,y)=>x.n-y.n);
     applySprays(abs, h.sprays||[]);
     const o = {name:String(h.name||'').trim(), number:String(h.number||'').replace(/^#/,'').trim(), position:String(h.position||'').trim().slice(0,4),
-      bats:['R','L','S'].includes(h.bats)?h.bats:'', throws:['R','L'].includes(h.throws)?h.throws:'', notes:String(h.notes||'').trim(), atBats:abs, include:true};
+      bats:['R','L','S'].includes(String(h.bats||'').toUpperCase())?String(h.bats).toUpperCase():'', throws:['R','L'].includes(String(h.throws||'').toUpperCase())?String(h.throws).toUpperCase():'',
+      runner:['green','yellow','red'].includes(String(h.runner||'').toLowerCase())?String(h.runner).toLowerCase():'', notes:String(h.notes||'').trim(), atBats:abs, include:true};
     o.target = autoMatch(o, team);
     return o;
   }).filter(h=>h.name || h.number || h.atBats.length);
@@ -1630,8 +1655,9 @@ function commitImport(){
     if(!p.name.trim()) p.name = h.name;
     if(!p.num) p.num = h.number;
     if(!p.pos) p.pos = h.position;
-    if(!p.bats) p.bats = h.bats;
-    if(!p.throws) p.throws = h.throws;
+    if(h.bats) p.bats = h.bats;
+    if(h.runner) p.runner = h.runner;
+    if(h.throws) p.throws = h.throws;
     if(h.notes && !p.notes.includes(h.notes)) p.notes = p.notes ? p.notes + '\n' + h.notes : h.notes;
     h.atBats.forEach(a=>{ const c = {...a}; delete c.n; c.id = uid(); p.abs.push(c); addedAB++; });
   }));
@@ -1651,10 +1677,13 @@ $('#app').addEventListener('change', e=>{
     IMP.photos.forEach(ph=>ph.result && ph.result.hitters.forEach(h=>h.target = autoMatch(h, team)));
     render(); return;
   }
-  const key = t.dataset.hinc || t.dataset.htarget;
+  const key = t.dataset.hinc || t.dataset.htarget || t.dataset.hbats || t.dataset.hrun;
   if(key){
     const [i,j] = key.split(':').map(Number), h = IMP.photos[i].result.hitters[j];
-    if(t.dataset.hinc) h.include = t.checked; else h.target = t.value;
+    if(t.dataset.hinc) h.include = t.checked;
+    else if(t.dataset.hbats) h.bats = t.value;
+    else if(t.dataset.hrun) h.runner = t.value;
+    else h.target = t.value;
     render();
   }
 });
