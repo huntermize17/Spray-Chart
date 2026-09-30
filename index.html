@@ -60,6 +60,7 @@
 #sunBtn[aria-pressed="true"]{background:var(--active);color:#000}
 *,*::before,*::after{box-sizing:border-box}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.4}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
@@ -177,6 +178,12 @@ label.lbl{display:block;font-family:var(--head);font-weight:600;font-size:17px;m
 .rdot{width:12px;height:12px;border-radius:50%;display:inline-block;border:1.5px solid var(--ink);flex:none}
 [data-theme="sun"] .ck{font-weight:700}
 .bkh{font-family:var(--head);font-size:24px;margin:0 0 6px}
+.teamlist{border-top:1px solid var(--line)}
+.teamrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 6px;border-bottom:1px solid var(--line)}
+.teamrow.on{background:var(--active);border-radius:6px}
+.teamrow small{color:var(--muted)}
+.teamrow .curtag{font-weight:600;color:var(--ink)}
+.teamacts{display:flex;gap:6px;flex:none}
 #tabBackup{position:relative}
 #tabBackup[data-sync="synced"]::after,#tabBackup[data-sync="syncing"]::after,#tabBackup[data-sync="offline"]::after,#tabBackup[data-sync="error"]::after{content:"";position:absolute;top:5px;right:4px;width:8px;height:8px;border-radius:50%;background:#2F8F5B;box-shadow:0 0 0 1.5px var(--card)}
 #tabBackup[data-sync="syncing"]::after{background:#F2C200}
@@ -225,6 +232,49 @@ html.nozoom #field{touch-action:manipulation}
 .sheet .btnrow{justify-content:space-between}
 
 @media (max-width:480px){header.top{flex-wrap:wrap}header.top h1{flex:0 0 auto;font-size:24px}#teamSel{flex:1;max-width:none}.tabs{flex:1}.tabs button{flex:1}}
+
+/* ---- notch / rounded-corner safe areas (matters in landscape) ---- */
+header.top,main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.sheet .card{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* ---- phones held sideways: short and wide ---- */
+@media (orientation:landscape) and (max-height:500px) and (min-width:600px){
+  header.top{padding-top:6px;gap:8px}
+  header.top h1{font-size:22px}
+  #teamSel,#sunBtn,.tabs button{padding-top:4px;padding-bottom:4px;font-size:16px}
+  main{padding-top:6px}
+  .order{padding-bottom:6px}
+  .order button{padding:4px 8px}
+  .batter{margin:0 0 8px}
+  .batter .num{font-size:28px;min-width:40px;padding:2px 4px}
+  .batter .who h2{font-size:22px}
+  .navbtn{padding:6px 10px}
+  .bkbanner{padding:6px 10px;margin-bottom:8px}
+  .inforow{margin-bottom:10px;gap:10px}
+  .scout{padding:4px 10px}
+  .scrow{padding:3px 0}
+  .ck{min-height:30px}
+  .inforow .notes textarea{min-height:0}
+  /* field on the left, at-bats on the right, like an iPad */
+  .grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start}
+  .fieldcol{order:-1;position:sticky;top:6px;max-height:calc(100vh - 12px);max-height:calc(100dvh - 12px);overflow-y:auto;-webkit-overflow-scrolling:touch;border-radius:10px}
+  .fieldwrap{padding:8px}
+  .marktype button{padding:4px 8px;font-size:14px}
+  .abhead{margin-bottom:6px}
+  .abhead h3{font-size:20px}
+  .ab{padding:6px;margin-bottom:6px}
+  /* pitch picker fits the short screen */
+  .sheet{align-items:center}
+  .sheet .card{max-height:calc(100vh - 12px);max-height:calc(100dvh - 12px);overflow-y:auto;border-radius:12px;padding-top:10px;padding-bottom:10px;max-width:640px}
+  .sheet h4{font-size:18px;margin-bottom:6px}
+  .pickhead{margin:2px 0 4px;font-size:16px}
+  .picks + .pickhead{margin-top:8px}
+  .picks button{padding:6px 4px}
+  .picks button b{font-size:24px}
+  .picks button b.swc{width:34px;height:34px}
+  .sheet .btnrow{margin-top:8px}
+  .sheet .btnrow .ghost{padding:5px 10px}
+}
 @media print{
   header.top .tabs,.order,.navbtn,.marktype,.primary,.iconbtn,.btnrow{display:none!important}
   body{background:#fff}
@@ -264,23 +314,7 @@ html.nozoom #field{touch-action:manipulation}
      ===================================================================== -->
 <template id="firebaseSetup">
 PASTE FIREBASE CODE BELOW THIS LINE
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
 
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyCYBZWmMZSSSom-WoIX6FcxBjriPhnw1-Y",
-  authDomain: "spray-chart-8bc84.firebaseapp.com",
-  projectId: "spray-chart-8bc84",
-  storageBucket: "spray-chart-8bc84.firebasestorage.app",
-  messagingSenderId: "591525998599",
-  appId: "1:591525998599:web:36d41f1ca026a7468dbaa2"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
 PASTE FIREBASE CODE ABOVE THIS LINE
 </template>
 
@@ -534,11 +568,17 @@ function renderLineup(){
       <label class="lbl" for="team" style="margin-top:0">Team name</label>
       <input id="team" class="ghost" style="width:100%;max-width:420px" value="${esc(T().name)}" placeholder="Opponent or team name">
       <div class="btnrow"><button class="ghost" id="addTeam">Add another team</button>
-        ${S.teams.length>1?`<button class="ghost danger" id="delTeam">Delete this team</button>`:''}</div>
+        <button class="ghost danger" data-delteam="${T().id}">Delete this team</button></div>
       <label class="lbl">Batting order</label>
       <div class="lu headrow"><span></span><span>Name</span><span>#</span><span class="opt">Pos</span><span class="opt">Bats</span><span class="opt">Throws</span><span></span></div>
       ${rows}
       <div class="btnrow"><button class="primary" id="addP">Add batter</button></div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <label class="lbl" style="margin-top:0">All teams</label>
+      <div class="teamlist">${S.teams.map((t,i)=>{ const n=countData([t]);
+        return `<div class="teamrow ${t.id===S.teamId?'on':''}"><span><b>${esc(tName(t,i))}</b>${t.id===S.teamId?' <small class="curtag">open</small>':''}<br><small>${n.hitters} hitter${n.hitters===1?'':'s'}, ${n.abs} at-bat${n.abs===1?'':'s'}</small></span>
+          <span class="teamacts">${t.id===S.teamId?'':`<button class="ghost" data-openteam="${t.id}">Open</button>`}<button class="ghost danger" data-delteam="${t.id}">Delete</button></span></div>`; }).join('')}</div>
     </div>
     <div class="panel" style="margin-top:16px">
       <label class="lbl" style="margin-top:0" for="themeSel">Display</label>
@@ -1019,11 +1059,17 @@ $('#app').addEventListener('click', e=>{
 
   // lineup tab
   if(q('#addTeam')){ addTeam(); return; }
-  if(q('#delTeam')){
-    const t=T(), n=t.players.reduce((k,p)=>k+p.abs.length,0);
-    if(confirm(`Delete ${tName(t,S.teams.indexOf(t))} with its lineup${n?` and ${n} at-bat(s)`:''}?`)){
-      forgetTeam(t.id); S.teams.splice(S.teams.indexOf(t),1); S.teamId=S.teams[0].id; save(); render(); }
-    return;
+  if(el = q('[data-openteam]')){ S.teamId = el.dataset.openteam; save(); render(); scrollTo(0,0); return; }
+  if(el = q('[data-delteam]')){
+    const i = S.teams.findIndex(x=>x.id===el.dataset.delteam); if(i<0) return;
+    const t = S.teams[i], n = countData([t]);
+    const msg = `Delete ${tName(t,i)}?\n\nThis removes its lineup${n.abs?` and ${n.abs} at-bat(s)`:''}.`
+      + (cloud.user ? `\n\nYou are signed in, so it is also removed from your other devices. You can bring it back from Cloud history on the Backup tab.` : `\n\nThis can't be undone unless you have a backup file.`);
+    if(!confirm(msg)) return;
+    forgetTeam(t.id); S.teams.splice(i,1);
+    if(!S.teams.length) S.teams.push(blankTeam());
+    if(!S.teams.find(x=>x.id===S.teamId)) S.teamId = S.teams[0].id;
+    save(); render(); return;
   }
   if(q('#addP')){ T().players.push(blankPlayer()); save(); render(); return; }
   if(el = q('[data-up]')||q('[data-down]')){
