@@ -171,10 +171,15 @@ label.lbl{display:block;font-family:var(--head);font-weight:600;font-size:17px;m
 .scrow{display:grid;grid-template-columns:58px repeat(3,minmax(0,1fr));align-items:center;gap:2px 4px;padding:6px 0}
 .scrow.flags{display:flex;flex-wrap:wrap;gap:4px 20px}
 .tl{white-space:nowrap}
+.unk{display:block;color:#C98300;font-weight:600;white-space:normal;margin-top:2px}
+.firstq{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;font-size:14px;font-weight:600}
+.firstq button{border:1.5px solid var(--ink);background:var(--card);border-radius:6px;padding:3px 12px;font-weight:600}
+.firstq button.on{background:var(--ink);color:var(--paper)}
+.firstq small{color:#C98300;font-weight:500}
 .scout{container-type:inline-size}
 /* when the info box is wide enough: 1st pitch + Sac/Drag on the left, Steals + H&R on the right */
 @container (min-width:540px){
-  .scoutin{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-areas:"bats bats" "run run" "fp st" "bunt hr";column-gap:0}
+  .scoutin{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-areas:"bats bats" "run run" "fp st" "bunt hr";column-gap:0}
   .sc-bats{grid-area:bats}.sc-run{grid-area:run}.sc-fp{grid-area:fp}.sc-bunt{grid-area:bunt}.sc-st{grid-area:st}.sc-hr{grid-area:hr}
   .sc-fp,.sc-bunt{padding-right:14px}
   .sc-st,.sc-hr{padding-left:14px;border-left:1px solid var(--line)}
@@ -519,7 +524,7 @@ function scoutBox(p){
       ${RUNNER.map(([v,l,c])=>ck('runner',v,p.runner===v,l,'',c)).join('')}</div>
     <div class="scrow tally1 sc-fp"><span class="sclab">1st pitch</span>
       <span class="tl">Swing <b>${fp.sw}</b></span><span class="tl">Take <b>${fp.tk}</b></span>
-      <span class="tl muted">${fp.sw+fp.tk ? `${Math.round(100*fp.sw/(fp.sw+fp.tk))}% swing` : ''}</span></div>
+      <span class="tl muted">${fp.sw+fp.tk ? `${Math.round(100*fp.sw/(fp.sw+fp.tk))}% swing` : ''}${fp.unk?` <span class="unk">${fp.unk} need${fp.unk===1?'s':''} a 1st-pitch answer below</span>`:''}</span></div>
     <div class="scrow bunts sc-bunt">${cnt('sacN','Sac')}${cnt('dragN','Drag')}</div>
     ${countRow(p,'steals','Steals','Steal','sc-st')}
     ${countRow(p,'hitruns','H&amp;R','Hit and run','sc-hr')}
@@ -556,13 +561,20 @@ document.addEventListener('click', e=>{
 // first pitch of each at-bat, counted only when it was a strike:
 // a called strike counts as a take, a swinging strike (circled) counts as a swing
 function firstPitch(p){
-  let sw = 0, tk = 0;
+  let sw = 0, tk = 0, unk = 0;
   p.abs.forEach(a=>{
-    if(a.noSeq) return;   // imported from a photo: pitch order unknown
-    const f = a.s.find(x=>x && x.q===1);
+    let f = null;
+    if(a.noSeq){
+      // imported from paper: the order isn't written down, so work it out when we can
+      const hasB = a.b.some(Boolean), firstS = a.s.find(Boolean);
+      if(!firstS) return;                                   // only balls: first pitch was a ball
+      if(a.first==='b') return;                             // coach said the first pitch was a ball
+      if(a.first==='s' || !hasB) f = firstS;                // no balls at all: first pitch was the first strike
+      else { unk++; return; }                               // balls and strikes: order unknown
+    } else f = a.s.find(x=>x && x.q===1);
     if(f){ if(f.sw) sw++; else tk++; }
   });
-  return {sw, tk};
+  return {sw, tk, unk};
 }
 function fieldSVG(p){
   let marks = '';
@@ -662,6 +674,10 @@ function abCard(a,i){
     </div>
     <div class="row b"><span class="lab">B</span><div class="boxes">${Array.from({length:BOXES},(_,k)=>boxBtn(a,'b',k)).join('')}</div></div>
     <div class="row s"><span class="lab">S</span><div class="boxes">${Array.from({length:BOXES},(_,k)=>boxBtn(a,'s',k)).join('')}</div></div>
+    ${a.noSeq && a.b.some(Boolean) && a.s.some(Boolean) ? `<div class="firstq"><span>1st pitch was a</span>
+      <button class="${a.first==='b'?'on':''}" data-first="b" data-ab="${a.id}">Ball</button>
+      <button class="${a.first==='s'?'on':''}" data-first="s" data-ab="${a.id}">Strike</button>
+      ${a.first?'':'<small>Imported from paper, so the order is unknown</small>'}</div>` : ''}
     <div class="abfoot"><span>${n} pitch${n===1?'':'es'}</span><span>${markTxt}</span><span class="spacer"></span>${a.mark?`<button class="iconbtn" data-unmark="${a.id}">Remove mark</button>`:''}</div>
   </div>`;
 }
@@ -1186,6 +1202,7 @@ $('#app').addEventListener('click', e=>{
   const t = e.target;
   const q = sel => t.closest(sel);
   let el;
+  if(el = q('[data-first]')){ const a = player().abs.find(x=>x.id===el.dataset.ab); if(a){ a.first = a.first===el.dataset.first ? '' : el.dataset.first; save(); const y=scrollY; render(); scrollTo(0,y); } return; }
   // chart tab
   if(el = q('.order [data-p]')){ T().cur = el.dataset.p; T().curAB=null; save(); render(); return; }
   if(q('#prev')||q('#next')){
@@ -1404,17 +1421,20 @@ function aiPrompt(){
 
 Sheet layout: each hitter section has a header with the hitter's name and jersey number (sometimes position, bats R/L/S, throws R/L), a notes area, a drawing of a baseball field, and a table of numbered at-bat rows. Each at-bat row has a "B" line of small boxes for balls and an "S" line of small boxes for strikes, and a Result column. Each filled box holds a pitch type number 1-5 (${S.pitches.map((n,i)=>`${i+1}=${n}`).join(', ')}). In the S boxes, a number with a circle drawn around it means the batter swung at that pitch; an uncircled number is a called strike (take).
 
-On the field drawing, balls in play are drawn as shapes, usually with the at-bat number inside or beside the shape: square = ground ball, circle = fly ball, triangle = line drive. Match each shape to its at-bat by that number.
+On the field drawing, each ball in play is usually drawn as a LINE starting at home plate and ending where the ball landed or was fielded. The line style tells the kind of hit:
+- dotted or dashed line = ground ball (GB)
+- solid line that curves or arcs = fly ball (FB)
+- solid straight line = line drive (LD)
+The at-bat number is usually written near the end of the line. Some sheets instead use shapes: square = ground ball, circle = fly ball, triangle = line drive, with the at-bat number inside or beside the shape. Look carefully at every line on the field; there is usually one for each ball put in play.
 
 Return ONLY JSON, no other text, in exactly this shape:
-{"hitters":[{"name":"","number":"","position":"","bats":"","throws":"","notes":"","atBats":[{"n":1,"balls":[1,2],"strikes":[{"pitch":1,"swung":false}],"result":"6-3","hitType":"GB","spray":{"angle":-20,"depth":0.4}}]}]}
+{"hitters":[{"name":"","number":"","position":"","bats":"","throws":"","notes":"","atBats":[{"n":1,"balls":[1,2],"strikes":[{"pitch":1,"swung":false}],"result":"6-3"}],"sprays":[{"ab":1,"hitType":"GB","angle":-20,"depth":0.4}]}]}
 
 Rules:
 - "n" is the at-bat number printed on the row. Skip rows with nothing written in them.
 - "balls": pitch numbers in the B boxes, left to right. "strikes": pitch numbers in the S boxes, left to right, with swung true only when circled.
 - "result": copy exactly what is written (like 1B, 2B, HR, BB, K, 6-3, F8, L6, P4). Empty string if blank.
-- "hitType": "GB", "FB" or "LD" from the shape on the field. If there is no shape, use the result only when it is clear (F or P = FB, L = LD, a ground out like 6-3 or 4-3 = GB); otherwise "".
-- "spray": where the shape is on the field, or null if there is no shape for that at-bat. angle in degrees: 0 = straight to center field, negative toward the left field side (-45 = on the left field foul line), positive toward the right field side (+45 = on the right field foul line). depth: 0 = home plate, 0.3 = the bases, 0.45 = the edge of the infield dirt, 1.0 = the outfield fence.
+- "sprays": one entry for EVERY line or shape drawn on that hitter's field. "ab" = the at-bat number written by it (null if you can't tell). "hitType" = "GB", "FB" or "LD" from the line style or shape. "angle" and "depth" describe the END of the line (where the ball went), or the center of the shape. angle in degrees: 0 = straight to center field, negative toward the left field side (-45 = on the left field foul line), positive toward the right field side (+45 = on the right field foul line). depth: 0 = home plate, 0.3 = the bases, 0.45 = the edge of the infield dirt, 0.7 = shallow outfield, 1.0 = the outfield fence.
 - "bats" is "R", "L", "S" or "". "throws" is "R", "L" or "".
 - If the photo shows more than one hitter, return each one. Never guess or invent values you cannot read; use "" or null instead.`;
 }
@@ -1436,6 +1456,53 @@ function toAtBat(x){
   a.n = +x.n || 0;
   return a;
 }
+// what a written result says about the hit: type (F8 = fly) and fielder number
+function resultGuess(r){
+  r = String(r||'').toUpperCase().replace(/\s/g,''); let m;
+  if((m = r.match(/^(?:F|P|FO|PO)([1-9])/))) return {t:'FB', f:+m[1]};
+  if((m = r.match(/^(?:L|LO)([1-9])/))) return {t:'LD', f:+m[1]};
+  if((m = r.match(/^(?:G|GO)?([1-9])-[1-9]/))) return {t:'GB', f:+m[1]};
+  return {t:'', f:0};
+}
+const sprayXY = (angle, depth) => {
+  const ang = Math.max(-47,Math.min(47,+angle))*Math.PI/180, r = Math.max(0.05,Math.min(1.15,+depth))*283;
+  return {x:Math.round(Math.max(12,Math.min(388,200+r*Math.sin(ang)))), y:Math.round(Math.max(14,Math.min(300,300-r*Math.cos(ang))))};
+};
+const inPlay = r => { r = String(r||'').trim().toUpperCase(); return !!r && !/^(K|KL|ꓘ|BB|IBB|HBP|HP|CI|SO|ꓘ\b)/.test(r); };
+// put each line drawn on the field onto its at-bat; lines drawn from the field win over guesses from the result
+function applySprays(abs, sprays){
+  const ok = sprays.filter(sp=>sp && ['GB','FB','LD'].includes(sp.hitType) && isFinite(sp.angle) && isFinite(sp.depth));
+  const loose = [];
+  ok.forEach(sp=>{
+    const a = sp.ab!=null ? abs.find(x=>x.n===+sp.ab && !x._sprayed) : null;
+    if(a){ a.mark = {...sprayXY(sp.angle,sp.depth), t:sp.hitType}; a._sprayed = true; }
+    else loose.push(sp);
+  });
+  // unnumbered lines: match each to the only at-bat it could belong to (same hit type, same side of the field)
+  let open = abs.filter(a=>!a._sprayed && inPlay(a.result));
+  const fits = (sp,a) => {
+    const g = resultGuess(a.result);
+    if(g.t && g.t!==sp.hitType) return false;
+    if(g.f){ const [fx,fy] = FIELDER[g.f]; const fa = Math.atan2(fx-200, 300-fy)*180/Math.PI; if(g.f>2 && Math.abs(fa - sp.angle) > 28) return false; }
+    return true;
+  };
+  let changed = true;
+  while(changed && loose.length && open.length){
+    changed = false;
+    for(let i=0;i<loose.length;i++){
+      const c = open.filter(a=>fits(loose[i],a));
+      if(c.length===1){ const sp = loose.splice(i,1)[0]; c[0].mark = {...sprayXY(sp.angle,sp.depth), t:sp.hitType}; c[0]._sprayed = true; open = open.filter(a=>a!==c[0]); changed = true; break; }
+    }
+  }
+  if(loose.length && loose.length===open.length) open.forEach((a,i)=>{ a.mark = {...sprayXY(loose[i].angle,loose[i].depth), t:loose[i].hitType}; a._sprayed = true; });
+  abs.forEach(a=>delete a._sprayed);
+  // no line at all: use the fielder in the result (F8, L6, 6-3) as a rough spot
+  abs.forEach(a=>{
+    if(a.mark) return;
+    const g = resultGuess(a.result);
+    if(g.t && FIELDER[g.f]) a.mark = {x:FIELDER[g.f][0], y:FIELDER[g.f][1], t:g.t};
+  });
+}
 function parseAI(text, team){
   let t = String(text||'').trim().replace(/^```(?:json)?/i,'').replace(/```$/,'').trim();
   const i = t.indexOf('{'), j = t.lastIndexOf('}');
@@ -1443,6 +1510,7 @@ function parseAI(text, team){
   const d = JSON.parse(t.slice(i,j+1));
   const hitters = (d.hitters||[]).map(h=>{
     const abs = (h.atBats||[]).map(toAtBat).filter(a=>a.result || a.mark || a.b.some(Boolean) || a.s.some(Boolean)).sort((x,y)=>x.n-y.n);
+    applySprays(abs, h.sprays||[]);
     const o = {name:String(h.name||'').trim(), number:String(h.number||'').replace(/^#/,'').trim(), position:String(h.position||'').trim().slice(0,4),
       bats:['R','L','S'].includes(h.bats)?h.bats:'', throws:['R','L'].includes(h.throws)?h.throws:'', notes:String(h.notes||'').trim(), atBats:abs, include:true};
     o.target = autoMatch(o, team);
