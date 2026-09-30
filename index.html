@@ -103,6 +103,16 @@ main{max-width:1100px;margin:0 auto;padding:12px 16px 40px}
 .tally th,.tally td{border-top:1px solid var(--line);padding:5px 4px;text-align:center}
 .tally th:first-child,.tally td:first-child{text-align:left}
 .tally thead th{font-family:var(--head);font-size:15px;color:var(--muted);font-weight:600}
+.tally tbody th{text-align:left;font-weight:500;white-space:nowrap;border-top:1px solid var(--line);padding:5px 4px}
+.tally td{font-family:var(--head);font-weight:600;font-size:17px;line-height:1.1}
+.tally td small{display:block;font-family:var(--body);font-weight:500;font-size:11px;color:var(--muted);min-height:12px}
+.tally td.top{background:var(--active);border-radius:4px}
+.tally td.tot{color:var(--muted)}
+.tally tr.sum th,.tally tr.sum td{border-top:2px solid var(--ink);font-weight:700}
+.fieldwrap .tally .ti svg{width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:6px}
+.tendh{font-family:var(--head);font-size:20px;margin:14px 0 2px}
+.headline{margin:0;font-weight:600}
+[data-theme="sun"] .tally td small{font-weight:700}
 .dot{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:4px;color:#fff;font-weight:600;font-size:13px;margin-right:6px;vertical-align:-4px}
 
 /* at-bats */
@@ -142,6 +152,21 @@ label.lbl{display:block;font-family:var(--head);font-weight:600;font-size:17px;m
   .lu .opt{display:none}
   .lu.headrow .opt{display:none}
 }
+.scout{margin-bottom:12px;padding:8px 12px}
+.scrow{display:grid;grid-template-columns:58px repeat(3,minmax(0,1fr));align-items:center;gap:2px 4px;padding:6px 0}
+.scrow.flags{display:flex;flex-wrap:wrap;gap:4px 20px}
+.scrow + .scrow{border-top:1px solid var(--line)}
+.sclab{font-family:var(--head);font-weight:700;font-size:17px}
+.ck{display:inline-flex;align-items:center;gap:6px;min-height:36px;font-weight:500;cursor:pointer;white-space:nowrap;min-width:0}
+.ck input{width:24px;height:24px;margin:0;accent-color:var(--ink);flex:none}
+.ck input.rc{appearance:none;-webkit-appearance:none;border:3px solid var(--rc);border-radius:5px;background:transparent;display:grid;place-items:center}
+.ck input.rc:checked{background:var(--rc) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5l3 3 7-7' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px no-repeat}
+.rdot{width:12px;height:12px;border-radius:50%;display:inline-block;border:1.5px solid var(--ink);flex:none}
+[data-theme="sun"] .ck{font-weight:700}
+.chk{display:flex;align-items:center;gap:10px;margin-top:12px;font-weight:500}
+.chk input{width:22px;height:22px;accent-color:var(--ink)}
+html.nozoom, html.nozoom *{touch-action:manipulation}
+html.nozoom #field{touch-action:manipulation}
 .set{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center;max-width:420px}
 .btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .ghost{border:1.5px solid var(--line);background:var(--card);border-radius:6px;padding:8px 12px;font-weight:500}
@@ -248,6 +273,33 @@ function shape(t, x, y, n, filled, active){
   const ty = t==='LD' ? y+6 : y+4;
   return s + `<text x="${x}" y="${ty}" text-anchor="middle" font-family="Barlow Condensed,Arial Narrow,sans-serif" font-weight="700" font-size="${t==='LD'?10:11}" fill="${txt}">${n}</text>`;
 }
+// which third of the field a mark is in: angle from home, foul lines at +/-45 degrees
+function side(m){
+  const a = Math.atan2(m.x-200, 300-m.y) * 180/Math.PI;
+  return a < -15 ? 'L' : a > 15 ? 'R' : 'C';
+}
+function tendencies(p){
+  const b = p.bats==='R' || p.bats==='L' ? p.bats : null;
+  const cols = b ? ['Pull','Middle','Oppo'] : ['Left','Center','Right'];
+  const colOf = sd => !b ? {L:0,C:1,R:2}[sd] : sd==='C' ? 1 : (sd==='L') === (b==='R') ? 0 : 2;
+  const rows = {GB:[0,0,0],FB:[0,0,0],LD:[0,0,0]};
+  p.abs.forEach(a=>{ if(a.mark) rows[a.mark.t][colOf(side(a.mark))]++; });
+  const all = [0,1,2].map(k=>rows.GB[k]+rows.FB[k]+rows.LD[k]);
+  return {cols, rows, all, n: all[0]+all[1]+all[2], byHand: !!b};
+}
+const pct = (v,t) => t ? Math.round(100*v/t)+'%' : '';
+const RUNNER = [['red','Red','#D0192B'],['yellow','Yellow','#F2C200'],['green','Green','#1E9A4B']];
+function scoutBox(p){
+  const ck = (attr,val,on,label,dot='',color='') => `<label class="ck"><input type="checkbox" ${color?`class="rc" style="--rc:${color}"`:''} data-sc="${attr}" data-v="${val}" ${on?'checked':''}>${dot}<span>${label}</span></label>`;
+  return `<div class="scout panel">
+    <div class="scrow"><span class="sclab">Bats</span>
+      ${[['R','Right'],['L','Left'],['S','Switch']].map(([v,l])=>ck('bats',v,p.bats===v,l)).join('')}</div>
+    <div class="scrow"><span class="sclab">Runner</span>
+      ${RUNNER.map(([v,l,c])=>ck('runner',v,p.runner===v,l,'',c)).join('')}</div>
+    <div class="scrow flags">
+      ${ck('fps','1',!!p.fps,'First pitch swing')}${ck('sac','1',!!p.sac,'Sac')}${ck('drag','1',!!p.drag,'Drag')}</div>
+  </div>`;
+}
 function fieldSVG(p){
   let marks = '';
   p.abs.forEach((a,i)=>{
@@ -267,6 +319,9 @@ function fieldSVG(p){
     <rect x="196.5" y="189" width="7" height="7" fill="var(--chalk)" transform="rotate(45 200 192.5)"/>
     <rect x="144" y="239" width="7" height="7" fill="var(--chalk)" transform="rotate(45 147.5 242.5)"/>
     <polygon points="196,296 204,296 204,300 200,304 196,300" fill="var(--chalk)"/>
+    <g stroke="var(--ink)" stroke-width="1" stroke-dasharray="4 5" opacity=".28">
+      <line x1="200" y1="300" x2="126.8" y2="26.6"/><line x1="200" y1="300" x2="273.2" y2="26.6"/>
+    </g>
     ${marks}
   </svg>`;
 }
@@ -279,12 +334,19 @@ function renderChart(){
   const order = T().players.map((q,i)=>`<button data-p="${q.id}" class="${q.id===T().cur?'on':''}"><b>${i+1}</b><span>${esc(pName(q,i))}</span></button>`).join('');
   const meta = [p.pos && `Pos ${esc(p.pos)}`, p.bats && `Bats ${p.bats}`, p.throws && `Throws ${p.throws}`].filter(Boolean).join(', ');
 
-  // tally of pitches by type
-  const t = Array.from({length:5},()=>({b:0,s:0}));
-  p.abs.forEach(a=>{ a.b.forEach(x=>x&&t[x.c-1].b++); a.s.forEach(x=>x&&t[x.c-1].s++); });
-  const tallyRows = S.pitches.map((n,i)=>`<tr><td><span class="dot" style="background:${PCOL[i]}">${i+1}</span>${esc(n)}</td><td>${t[i].b}</td><td>${t[i].s}</td><td>${t[i].b+t[i].s}</td></tr>`).join('');
+  // spray tendencies by hit type and field direction
+  const td = tendencies(p);
+  const cell = (v,row) => { const tot=row[0]+row[1]+row[2]; const top = tot && v===Math.max(...row) && v>0;
+    return `<td class="${top?'top':''}">${v}<small>${pct(v,tot)}</small></td>`; };
+  const tRows = [['GB','Ground balls'],['FB','Fly balls'],['LD','Line drives']].map(([k,l])=>{
+    const r = td.rows[k]; return `<tr><th scope="row"><span class="ti">${typeIcon(k)}</span>${l}</th>${r.map(v=>cell(v,r)).join('')}<td class="tot">${r[0]+r[1]+r[2]}</td></tr>`;
+  }).join('') + `<tr class="sum"><th scope="row">All</th>${td.all.map(v=>cell(v,td.all)).join('')}<td class="tot">${td.n}</td></tr>`;
+  let headline = 'No balls in play marked yet.';
+  if(td.n){ const k = td.all.indexOf(Math.max(...td.all));
+    headline = `${td.byHand ? ['Pulls','Goes up the middle on','Goes oppo on'][k] : ['Goes to left field on','Goes to center on','Goes to right field on'][k]} ${pct(td.all[k],td.n)} of ${td.n} ball${td.n===1?'':'s'} in play.`; }
+  const tallyNote = td.byHand ? '' : `<p class="hint">${p.bats==='S'?'Switch hitter, so this shows left, center, and right field.':'Set Bats to R or L on the Lineup tab to see pull and oppo.'}</p>`;
 
-  const abs = p.abs.length ? p.abs.map((a,i)=>abCard(a,i)).join('')
+  const abs = p.abs.length ? p.abs.map((a,i)=>abCard(a,i)).reverse().join('')
     : `<div class="empty">No at-bats yet. Tap <b>New at-bat</b>, then tap the field where the ball went.</div>`;
 
   $('#app').innerHTML = `
@@ -297,15 +359,19 @@ function renderChart(){
     </div>
     <div class="grid">
       <section class="fieldcol">
+        ${scoutBox(p)}
+        <div class="notes" style="margin-bottom:12px"><label class="lbl" for="notes" style="margin-top:0">Notes</label><textarea id="notes" placeholder="Tendencies, approach, what he chases">${esc(p.notes)}</textarea></div>
         <div class="panel fieldwrap">
           ${fieldSVG(p)}
           <div class="marktype" role="group" aria-label="Type of hit">
             ${[['GB','Ground ball'],['FB','Fly ball'],['LD','Line drive']].map(([k,l])=>`<button data-mt="${k}" aria-pressed="${S.markType===k}">${typeIcon(k)}${l}</button>`).join('')}
           </div>
           <p class="hint">Tap the field to mark the ball for the highlighted at-bat. Filled shapes are hits.</p>
-          <table class="tally"><thead><tr><th>Pitch</th><th style="color:var(--ball)">Balls</th><th style="color:var(--strike)">Strikes</th><th>Total</th></tr></thead><tbody>${tallyRows}</tbody></table>
+          <h4 class="tendh">Spray tendencies</h4>
+          <p class="headline">${headline}</p>
+          <table class="tally"><thead><tr><th></th>${td.cols.map(c=>`<th>${c}</th>`).join('')}<th>Total</th></tr></thead><tbody>${tRows}</tbody></table>
+          ${tallyNote}
         </div>
-        <div class="notes"><label class="lbl" for="notes">Notes</label><textarea id="notes" placeholder="Tendencies, approach, what he chases">${esc(p.notes)}</textarea></div>
       </section>
       <section>
         <div class="abhead"><h3>At-bats</h3><span style="display:flex;gap:6px"><button class="ghost" id="pdf">Team PDF</button><button class="primary" id="newAB">New at-bat</button></span></div>
@@ -366,6 +432,7 @@ function renderLineup(){
       <select id="themeSel" class="ghost" style="max-width:420px;width:100%">
         ${[['auto','Match phone setting'],['light','Light'],['dark','Dark'],['sun','Sun: high contrast for daylight']].map(([v,l])=>`<option value="${v}" ${(S.theme||'auto')===v?'selected':''}>${l}</option>`).join('')}
       </select>
+      <label class="chk"><input type="checkbox" id="noZoom" ${S.noZoom!==false?'checked':''}> Turn off double-tap zoom</label>
       <label class="lbl">Pitch key</label>
       <div class="set">${S.pitches.map((n,i)=>`<span class="dot" style="background:${PCOL[i]}">${i+1}</span><input data-pitch="${i}" value="${esc(n)}" aria-label="Pitch ${i+1} name">`).join('')}</div>
       <label class="lbl">Backup</label>
@@ -382,7 +449,15 @@ function renderLineup(){
     </div>`;
 }
 
+const VP_ZOOM = 'width=device-width, initial-scale=1, viewport-fit=cover';
+const VP_NOZOOM = 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover';
+function applyZoom(){
+  const off = S.noZoom !== false;
+  document.documentElement.classList.toggle('nozoom', off);
+  document.querySelector('meta[name=viewport]').setAttribute('content', off ? VP_NOZOOM : VP_ZOOM);
+}
 function applyTheme(){
+  applyZoom();
   const th = S.theme || 'auto';
   if(th==='auto') document.documentElement.removeAttribute('data-theme');
   else document.documentElement.setAttribute('data-theme', th);
@@ -451,6 +526,13 @@ $('#sunBtn').onclick = ()=>{
   save(); applyTheme();
 };
 $('#app').addEventListener('change', e=>{
+  if(e.target.dataset && e.target.dataset.sc){
+    const p = player(), k = e.target.dataset.sc, v = e.target.dataset.v;
+    if(k==='fps'||k==='sac'||k==='drag') p[k] = e.target.checked;
+    else p[k] = e.target.checked ? v : '';   // one choice per group; unchecking clears it
+    save(); const y=scrollY; render(); scrollTo(0,y); return;
+  }
+  if(e.target.id==='noZoom'){ S.noZoom = e.target.checked; save(); applyZoom(); }
   if(e.target.id==='themeSel'){ S.theme = e.target.value; if(S.theme!=='sun') S.prevTheme = S.theme; save(); applyTheme(); }
 });
 $('#tabChart').onclick = ()=>{ S.tab='chart'; save(); render(); };
@@ -596,7 +678,14 @@ async function exportPDF(btn){
       const nm = `${p.num?'#'+p.num+'  ':''}${pName(p,i)}`;
       text(fit(nm,bold,22,330),M,M+18,22,bold);
       const meta = [`Batting ${i+1}`, p.pos&&`Pos ${p.pos}`, p.bats&&`Bats ${p.bats}`, p.throws&&`Throws ${p.throws}`].filter(Boolean).join('   ');
-      text(meta,W-M-reg.widthOfTextAtSize(clean(meta),11),M+26,11,reg,C.muted);
+      text(meta,W-M-reg.widthOfTextAtSize(clean(meta),11),M+16,11,reg,C.muted);
+      const flags = [p.fps&&'First pitch swing', p.sac&&'Sac', p.drag&&'Drag'].filter(Boolean);
+      const rn = RUNNER.find(r=>r[0]===p.runner);
+      let fxr = W-M;
+      const fl = flags.join('    ');
+      if(fl){ fxr -= bold.widthOfTextAtSize(fl,10); text(fl,fxr,M+32,10,bold); fxr -= 14; }
+      if(rn){ const rt=`Runner: ${rn[1]}`; fxr -= reg.widthOfTextAtSize(rt,10); text(rt,fxr,M+32,10,reg); 
+        pg.drawCircle({x:fxr-8,y:H-(M+32+4),size:4.5,color:hex(rn[2]),borderColor:C.ink,borderWidth:0.6}); }
       line(M,M+50,W-M,M+50,C.ink,1.2);
     }
 
@@ -630,6 +719,7 @@ async function exportPDF(btn){
       path('M200,300 L108,208 A130,130 0 0 1 292,208 Z',fx,fy,sc,{color:C.dirt});
       path('M200,286 L243,243 L200,203 L157,243 Z',fx,fy,sc,{color:C.grass});
       path('M0,100 L200,300 L400,100',fx,fy,sc,{borderColor:C.white,borderWidth:1.5});
+      path('M126.8,26.6 L200,300 L273.2,26.6',fx,fy,sc,{borderColor:C.ink,borderWidth:0.5,borderDashArray:[3,4],borderOpacity:0.35});
       [[252.5,242.5],[200,192.5],[147.5,242.5]].forEach(([bx,by])=>
         path('M0,-4 L4,0 L0,4 L-4,0 Z',fx+bx*sc,fy+by*sc,1,{color:C.white}));
       path('M196,296 L204,296 L204,300 L200,304 L196,300 Z',fx,fy,sc,{color:C.white});
@@ -641,9 +731,25 @@ async function exportPDF(btn){
       });
       text('Filled = hit',fx+276,ly+2,9,reg,C.muted);
 
+      const tx=M+330, tw=W-M-tx; let ty=fy-4;
+      // spray tendencies
+      const td = tendencies(p);
+      text('Spray tendencies',tx,ty,12,bold); ty+=16;
+      const sx=[tx, tx+tw-150, tx+tw-108, tx+tw-66, tx+tw-24];
+      td.cols.concat('Total').forEach((h,k)=>ctext(h,sx[k+1]+10,ty,8,bold,C.muted)); ty+=11;
+      [['GB','Ground'],['FB','Fly'],['LD','Line'],['All','All']].forEach(([k,l])=>{
+        const r = k==='All' ? td.all : td.rows[k], tot=r[0]+r[1]+r[2], mx=Math.max(...r);
+        line(tx,ty-2,W-M,ty-2,k==='All'?C.ink:C.line,k==='All'?1:0.75);
+        if(k!=='All') mark(k,tx+5,ty+5,'',false,4);
+        text(l,tx+(k==='All'?0:14),ty+1,9,k==='All'?bold:reg);
+        r.forEach((v,j)=>ctext(tot?`${v}  ${pct(v,tot)}`:'0',sx[j+1]+10,ty+1,9,v===mx&&v>0?bold:reg));
+        ctext(tot,sx[4]+10,ty+1,9,reg,C.muted);
+        ty+=14;
+      });
+      if(!td.byHand){ text(p.bats==='S'?'Switch hitter: left / center / right field':'Bats not set: left / center / right field',tx,ty+1,8,reg,C.muted); ty+=11; }
+      ty+=8;
       // tally
-      const tx=M+330, tw=W-M-tx; let ty=fy;
-      text('Pitches seen',tx,ty,12,bold); ty+=18;
+      text('Pitches seen',tx,ty,12,bold); ty+=16;
       const colX=[tx, tx+tw-96, tx+tw-60, tx+tw-24];
       ['Pitch','Balls','Strikes','Total'].forEach((h,k)=> k? ctext(h,colX[k]+10,ty,8,bold,k===1?C.ball:k===2?C.strike:C.muted) : text(h,tx,ty,8,bold,C.muted));
       ty+=12;
@@ -654,14 +760,14 @@ async function exportPDF(btn){
         rect(tx,ty,11,11,{color:C.p[k]}); ctext(k+1,tx+5.5,ty+2,8,bold,C.white);
         text(fit(nm,reg,9.5,colX[1]-tx-24),tx+16,ty+1,9.5);
         [t[k].b,t[k].s,t[k].b+t[k].s].forEach((v,j)=>ctext(v,colX[j+1]+10,ty+1,9.5));
-        ty+=17;
+        ty+=14;
       });
       line(tx,ty-3,W-M,ty-3);
       const hits = p.abs.filter(a=>isHit(a.result)).length;
       text(`${p.abs.length} at-bat${p.abs.length===1?'':'s'}, ${hits} hit${hits===1?'':'s'}`,tx,ty+3,9.5,reg,C.muted);
-      ty+=24;
+      ty+=18;
       // notes
-      text('Notes',tx,ty,12,bold); ty+=17;
+      text('Notes',tx,ty,12,bold); ty+=15;
       const words = clean(p.notes).split(/\s+/).filter(Boolean); let ln='', lines=[];
       words.forEach(w=>{ const tryl = ln?ln+' '+w:w; if(reg.widthOfTextAtSize(tryl,9.5)>tw){ lines.push(ln); ln=w; } else ln=tryl; });
       if(ln) lines.push(ln);
