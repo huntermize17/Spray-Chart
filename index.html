@@ -1477,7 +1477,9 @@ async function aiGenerate(parts){
 function aiErr(e){
   const m = errText(e);
   let msg;
-  if(/API_KEY_SERVICE_BLOCKED|are blocked|blocked for this API key|API_KEY_API_BLOCKED/i.test(m))
+  if(/App Check/i.test(m))
+    msg = 'Firebase App Check is blocking photo reading. In the Firebase console, go to Security, then App Check, then the APIs tab. Click Firebase AI Logic and choose Unenforce. Wait a couple of minutes and try again.';
+  else if(/API_KEY_SERVICE_BLOCKED|are blocked|blocked for this API key|API_KEY_API_BLOCKED/i.test(m))
     msg = 'Your Firebase API key is not allowed to use Firebase AI Logic. In the Google Cloud console (console.cloud.google.com), pick this project, go to APIs & Services, then Credentials. Open "Browser key (auto created by Firebase)". Under API restrictions, add "Firebase AI Logic API" (and "Generative Language API" if listed), and save. Changes can take 5 minutes.';
   else if(/REFERRER|referer/i.test(m))
     msg = `Your Firebase API key only allows certain websites. In the Google Cloud console, APIs & Services, Credentials, open the Browser key and add ${location.hostname}/* under Website restrictions.`;
