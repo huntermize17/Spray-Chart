@@ -314,23 +314,7 @@ header.top,main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-rig
      ===================================================================== -->
 <template id="firebaseSetup">
 PASTE FIREBASE CODE BELOW THIS LINE
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
 
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyCYBZWmMZSSSom-WoIX6FcxBjriPhnw1-Y",
-  authDomain: "spray-chart-8bc84.firebaseapp.com",
-  projectId: "spray-chart-8bc84",
-  storageBucket: "spray-chart-8bc84.firebasestorage.app",
-  messagingSenderId: "591525998599",
-  appId: "1:591525998599:web:36d41f1ca026a7468dbaa2"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
 PASTE FIREBASE CODE ABOVE THIS LINE
 </template>
 
@@ -771,9 +755,27 @@ function startSync(){
   stopSync();
   const F = cloud.F, uidc = cloud.user.uid;
   cloud.status = 'syncing';
-  cloud.unsub.push(F.onSnapshot(F.collection(cloud.db,'users',uidc,'teams'), applyRemote,
-    err=>{ cloud.status='error'; cloud.err = err.code==='permission-denied' ? 'The cloud database refused access. Check the Firestore rules in Firebase.' : `Sync problem (${err.code}).`; updateSyncUI(); }));
-  cloud.unsub.push(F.onSnapshot(F.doc(cloud.db,'users',uidc,'meta','settings'), applySettings, ()=>{}));
+  // includeMetadataChanges is required: the server's first "all caught up" answer
+  // often changes nothing but metadata, and without it that answer never arrives
+  cloud.unsub.push(F.onSnapshot(F.collection(cloud.db,'users',uidc,'teams'), {includeMetadataChanges:true}, applyRemote, snapErr));
+  cloud.unsub.push(F.onSnapshot(F.doc(cloud.db,'users',uidc,'meta','settings'), {includeMetadataChanges:true}, applySettings, snapErr));
+  clearTimeout(cloud.waitTimer);
+  cloud.waitTimer = setTimeout(()=>{
+    if(cloud.user && !cloud.firstSnap && navigator.onLine){
+      cloud.status = 'error';
+      cloud.err = "Signed in, but can't reach the cloud database. In Firebase, check that Firestore Database has been created (Build, Firestore Database) and that the rules were published.";
+      updateSyncUI();
+    }
+  }, 15000);
+  updateSyncUI();
+}
+function snapErr(err){
+  console.error(err);
+  cloud.status = 'error';
+  const c = err.code || '';
+  cloud.err = c==='permission-denied' ? 'The cloud database refused access. In Firebase, open Firestore Database, then Rules, paste the rules again, and click Publish.'
+    : (c==='not-found' || c==='failed-precondition') ? 'The cloud database was not found. In Firebase, go to Build, Firestore Database, and click Create database.'
+    : `Sync problem (${c || err.message}).`;
   updateSyncUI();
 }
 function fromRemote(id, r, loc){
@@ -808,6 +810,8 @@ function applyRemote(snap){
     S.teams.forEach(t=>{ if(!seen.has(t.id) && !isEmptyTeam(t) && !(t.updatedAt>0)){ t.updatedAt = Date.now(); changed = true; } });
   }
   if(changed){ if(!S.teams.length) S.teams.push(blankTeam()); T(); save(); rerenderSoon(); }
+  clearTimeout(cloud.waitTimer);
+  if(cloud.status==='error' && /reach the cloud database/.test(cloud.err)) cloud.err = '';
   cloud.status = 'synced'; cloud.lastSync = Date.now();
   scheduleUpload(0); updateSyncUI();
 }
@@ -949,7 +953,8 @@ function syncPanelHTML(){
       <button class="ghost" id="cloudOut">Sign out</button>
     </div>
     ${hist}
-    <p class="hint">Cloud history keeps a copy of each team from the start of every day it changed, so you can undo a mistake even after it synced to all your devices.</p>`;
+    <p class="hint">Cloud history keeps a copy of each team from the start of every day it changed, so you can undo a mistake even after it synced to all your devices.</p>
+    <p class="hint syncinfo">Project: ${esc(FIREBASE_CONFIG.projectId)}. Connected to database: ${cloud.firstSnap?'yes':'not yet'}. Teams in cloud: ${Object.values(cloud.remoteData).length}. Online: ${navigator.onLine?'yes':'no'}.</p>`;
 }
 cloudInit();
 
@@ -1097,7 +1102,7 @@ $('#app').addEventListener('click', e=>{
   if(el = q('#pdf')){ exportPDF(el); return; }
   if(q('#cloudIn')){ cloudSignIn(); return; }
   if(q('#cloudOut')){ cloudSignOut(); return; }
-  if(q('#cloudNow')){ if(cloud.user){ cloud.err=''; if(cloud.status==='error') startSync(); else scheduleUpload(0); updateSyncUI(); } return; }
+  if(q('#cloudNow')){ if(cloud.user){ cloud.err=''; if(cloud.status==='error' || !cloud.firstSnap) startSync(); else scheduleUpload(0); updateSyncUI(); } return; }
   if(q('#cloudHist')){ loadHistory(); return; }
   if(el = q('[data-hist]')){ restoreHistory(el.dataset.hist); return; }
   if(q('#bkDownload')){ downloadBackup(); return; }
