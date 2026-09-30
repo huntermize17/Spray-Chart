@@ -94,7 +94,7 @@ main{max-width:1100px;margin:0 auto;padding:12px 16px 40px}
 .inforow .notes{display:flex;flex-direction:column}
 .inforow .notes textarea{flex:1}
 @media (min-width:640px){.inforow{grid-template-columns:auto minmax(0,1fr)}}
-@media (min-width:900px){.grid{grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);align-items:start}.fieldcol{position:sticky;top:12px}}
+@media (min-width:900px){.grid{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);align-items:start}.fieldcol{position:sticky;top:12px;order:-1}}
 
 .panel{background:var(--card);border:1.5px solid var(--line);border-radius:10px;padding:12px}
 .fieldwrap svg{width:100%;height:auto;display:block;touch-action:manipulation;cursor:crosshair}
@@ -184,6 +184,13 @@ html.nozoom #field{touch-action:manipulation}
 @media (min-width:640px){.sheet{align-items:center}.sheet .card{border-radius:14px}}
 .sheet h4{font-family:var(--head);font-size:22px;margin:0 0 12px}
 .picks{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.pickhead{margin:4px 0 6px;font-family:var(--head);font-weight:700;font-size:18px}
+.pickhead span{font-family:var(--body);font-weight:400;font-size:13px;color:var(--muted)}
+.picks + .pickhead{margin-top:14px}
+.picks button.cur{outline:3px solid var(--ink);outline-offset:2px}
+.picks button b.swc{border:3px solid #fff;border-radius:50%;width:44px;height:44px;display:grid;place-items:center}
+.swc{display:inline-grid;place-items:center;border:2px solid currentColor;border-radius:50%;width:1.35em;height:1.35em;line-height:1}
+[data-theme="sun"] .swc{border-width:2.5px}
 .picks button{border:0;border-radius:8px;padding:12px 4px;color:#fff;display:flex;flex-direction:column;align-items:center;gap:2px}
 .picks button b{font-family:var(--head);font-size:30px;line-height:1}
 .picks button span{font-size:12px;opacity:.95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
@@ -212,7 +219,7 @@ html.nozoom #field{touch-action:manipulation}
 <div class="sheet" id="sheet" aria-hidden="true">
   <div class="card" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
     <h4 id="sheetTitle">Pick the pitch</h4>
-    <div class="picks" id="picks"></div>
+    <div id="picks"></div>
     <div class="btnrow">
       <button class="ghost danger" id="clearBox">Clear box</button>
       <button class="ghost" id="closeSheet">Cancel</button>
@@ -389,8 +396,8 @@ function renderChart(){
 }
 function boxBtn(a,kind,i){
   const v = a[kind][i];
-  const lbl = `${kind==='b'?'Ball':'Strike'} box ${i+1}${v?`, pitch ${v.c}`:', empty'}`;
-  return `<button class="box ${v?'f':''}" data-ab="${a.id}" data-k="${kind}" data-i="${i}" aria-label="${lbl}" ${v?`style="color:${PCOL[v.c-1]}"`:''}>${v?`<sup>${v.q}</sup>${v.c}`:''}</button>`;
+  const lbl = `${kind==='b'?'Ball':'Strike'} box ${i+1}${v?`, pitch ${v.c}${v.sw?', swung at':''}`:', empty'}`;
+  return `<button class="box ${v?'f':''}" data-ab="${a.id}" data-k="${kind}" data-i="${i}" aria-label="${lbl}" ${v?`style="color:${PCOL[v.c-1]}"`:''}>${v?`<sup>${v.q}</sup>${v.sw?`<span class="swc">${v.c}</span>`:v.c}`:''}</button>`;
 }
 function abCard(a,i){
   const n = a.b.filter(Boolean).length + a.s.filter(Boolean).length;
@@ -485,29 +492,36 @@ let pending = null;
 function openPicker(abId,k,i){
   pending = {abId,k,i};
   $('#sheetTitle').textContent = `${k==='b'?'Ball':'Strike'}, box ${i+1}: which pitch?`;
-  $('#picks').innerHTML = S.pitches.map((n,j)=>`<button data-pick="${j+1}" style="background:${PCOL[j]}"><b>${j+1}</b><span>${esc(n)}</span></button>`).join('');
+  const a = player().abs.find(x=>x.id===abId), cur = a && a[k][i];
+  const row = sw => `<div class="picks">${S.pitches.map((n,j)=>{
+      const on = cur && cur.c===j+1 && !!cur.sw===sw;
+      return `<button data-pick="${j+1}" data-sw="${sw?1:0}" class="${on?'cur':''}" style="background:${PCOL[j]}" aria-label="${esc(n)}${k==='s'?(sw?', swung at':', taken'):''}"><b class="${sw?'swc':''}">${j+1}</b><span>${esc(n)}</span></button>`;
+    }).join('')}</div>`;
+  $('#picks').innerHTML = k==='b' ? row(false)
+    : `<p class="pickhead">Take</p>${row(false)}<p class="pickhead">Swung at <span>(number gets circled)</span></p>${row(true)}`;
   $('#sheet').classList.add('open'); $('#sheet').setAttribute('aria-hidden','false');
   $('#picks button').focus();
+  $('#picks').scrollTop = 0;
 }
 function closePicker(){ pending=null; $('#sheet').classList.remove('open'); $('#sheet').setAttribute('aria-hidden','true'); }
 function renumber(a){
   const all = [...a.b, ...a.s].filter(Boolean).sort((x,y)=>x.q-y.q);
   all.forEach((x,i)=>x.q=i+1);
 }
-function setBox(val){
+function setBox(val, sw=false){
   const p = player(), a = p.abs.find(x=>x.id===pending.abId);
   if(!a) return closePicker();
   const cur = a[pending.k][pending.i];
   if(val===null){ a[pending.k][pending.i] = null; }
-  else if(cur){ cur.c = val; }
+  else if(cur){ cur.c = val; if(pending.k==='s') cur.sw = sw; }
   else {
     const q = [...a.b, ...a.s].filter(Boolean).length + 1;
-    a[pending.k][pending.i] = {c:val,q};
+    a[pending.k][pending.i] = pending.k==='s' ? {c:val,q,sw} : {c:val,q};
   }
   renumber(a);
   T().curAB = a.id; closePicker(); save(); render();
 }
-$('#picks').addEventListener('click',e=>{ const b=e.target.closest('[data-pick]'); if(b) setBox(+b.dataset.pick); });
+$('#picks').addEventListener('click',e=>{ const b=e.target.closest('[data-pick]'); if(b) setBox(+b.dataset.pick, b.dataset.sw==='1'); });
 $('#clearBox').onclick = ()=>setBox(null);
 $('#closeSheet').onclick = closePicker;
 $('#sheet').addEventListener('click',e=>{ if(e.target.id==='sheet') closePicker(); });
@@ -708,7 +722,8 @@ async function exportPDF(btn){
           for(let b=0;b<BOXES;b++){
             const bx=x+24+b*bw, v=a[kind][b];
             rect(bx,yy,bw,bh,{borderColor:C.line,borderWidth:0.6});
-            if(v) ctext(v.c,bx+bw/2,yy+2,7.5,bold,C.p[v.c-1]);
+            if(v){ ctext(v.c,bx+bw/2,yy+2,7.5,bold,C.p[v.c-1]);
+              if(v.sw) pg.drawCircle({x:bx+bw/2,y:H-yy-bh/2,size:Math.min(bw,bh)/2-0.6,borderColor:C.p[v.c-1],borderWidth:0.8}); }
           }
         });
         const rx=x+24+BOXES*bw+3, rw=cw-(24+BOXES*bw+3)-6;
@@ -757,16 +772,16 @@ async function exportPDF(btn){
       ty+=8;
       // tally
       text('Pitches seen',tx,ty,12,bold); ty+=16;
-      const colX=[tx, tx+tw-96, tx+tw-60, tx+tw-24];
-      ['Pitch','Balls','Strikes','Total'].forEach((h,k)=> k? ctext(h,colX[k]+10,ty,8,bold,k===1?C.ball:k===2?C.strike:C.muted) : text(h,tx,ty,8,bold,C.muted));
+      const colX=[tx, tx+tw-130, tx+tw-96, tx+tw-60, tx+tw-24];
+      ['Pitch','Balls','Strikes','Swung','Total'].forEach((h,k)=> k? ctext(h,colX[k]+10,ty,8,bold,k===1?C.ball:k===2?C.strike:C.muted) : text(h,tx,ty,8,bold,C.muted));
       ty+=12;
-      const t = Array.from({length:5},()=>({b:0,s:0}));
-      p.abs.forEach(a=>{ a.b.forEach(x=>x&&t[x.c-1].b++); a.s.forEach(x=>x&&t[x.c-1].s++); });
+      const t = Array.from({length:5},()=>({b:0,s:0,w:0}));
+      p.abs.forEach(a=>{ a.b.forEach(x=>x&&t[x.c-1].b++); a.s.forEach(x=>{ if(x){ t[x.c-1].s++; if(x.sw) t[x.c-1].w++; } }); });
       S.pitches.forEach((nm,k)=>{
         line(tx,ty-3,W-M,ty-3);
         rect(tx,ty,11,11,{color:C.p[k]}); ctext(k+1,tx+5.5,ty+2,8,bold,C.white);
         text(fit(nm,reg,9.5,colX[1]-tx-24),tx+16,ty+1,9.5);
-        [t[k].b,t[k].s,t[k].b+t[k].s].forEach((v,j)=>ctext(v,colX[j+1]+10,ty+1,9.5));
+        [t[k].b,t[k].s,t[k].w,t[k].b+t[k].s].forEach((v,j)=>ctext(v,colX[j+1]+10,ty+1,9.5));
         ty+=14;
       });
       line(tx,ty-3,W-M,ty-3);
