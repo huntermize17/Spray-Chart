@@ -1313,7 +1313,7 @@ function openImport(){
 }
 const impTeam = () => IMP.team==='__new' ? null : S.teams.find(t=>t.id===IMP.team);
 function impStatus(ph){
-  return {wait:'Waiting', reading:'Reading...', done:'Read', error:'Could not read'}[ph.status];
+  return ph.status==='reading' && aiWaitNote ? aiWaitNote : {wait:'Waiting', reading:'Reading...', done:'Read', error:'Could not read'}[ph.status];
 }
 function hitterKey(p){ return (p.name||'').toLowerCase().replace(/[^a-z]/g,''); }
 function autoMatch(h, team){
@@ -1460,7 +1460,13 @@ async function aiSDK(){
 }
 const errText = e => String((e && (e.message || e.code)) || e || '');
 const isBusy = e => /high demand|overloaded|UNAVAILABLE|\[50[03] \]|\b50[03]\b|try again later/i.test(errText(e));
+const isQuota = e => /quota|\b429\b|\[429 \]|RESOURCE_EXHAUSTED|rate limit/i.test(errText(e));
+// "limit: 0" means this model has no free allowance on this project at all
+const noFreeTier = e => /limit:\s*0\b|free_tier[^]*limit:\s*0|not available on the free tier|billing/i.test(errText(e));
+const retrySecs = e => { const m = errText(e).match(/retry(?:Delay)?[^0-9]{0,20}([0-9.]+)\s*s/i); return m ? Math.min(40, Math.ceil(+m[1])+1) : 15; };
 const isModelMissing = e => /not found|404|is not supported|unknown model|does not exist|NOT_FOUND/i.test(errText(e)) && !/SERVICE_DISABLED|has not been used/i.test(errText(e));
+let aiWaitNote = '';
+function aiWait(sec){ aiWaitNote = sec ? `Google asked to wait ${sec} seconds, retrying...` : ''; render(); }
 async function aiGenerate(parts){
   const {AI, ai} = await aiSDK();
   let start = 0; try{ start = Math.max(0, AI_MODELS.indexOf(localStorage.getItem('sprayChart.aiModel'))); }catch(e){}
@@ -1476,6 +1482,11 @@ async function aiGenerate(parts){
       }catch(e){
         last = e; console.error(AI_MODELS[k], e);
         if(isBusy(e)){ if(attempt<2){ await new Promise(r=>setTimeout(r, attempt ? 6000 : 2500)); continue; } isBusyFallback = true; break; }
+        if(isQuota(e)){
+          if(noFreeTier(e)) break;            // this model isn't free here: use (and remember) the next one
+          if(attempt<1){ aiWait(retrySecs(e)); await new Promise(r=>setTimeout(r, retrySecs(e)*1000)); aiWait(0); continue; }
+          isBusyFallback = true; break;                                  // still limited: try the next model
+        }
         if(isModelMissing(e)) break;
         throw e;
       }
@@ -1497,7 +1508,9 @@ function aiErr(e){
   else if(/api-not-enabled|SERVICE_DISABLED|has not been used|it is disabled/i.test(m))
     msg = 'Firebase says the AI service is still off for this project. If you just turned on AI Logic, wait about 5 minutes and try again. If it still fails, open AI Logic in the Firebase console and make sure it shows the Gemini Developer API as set up (not only the Get started screen).';
   else if(isBusy(e)) msg = "Google's photo reader is overloaded right now. That's on Google's end and usually clears up in a few minutes. Tap Try again in a bit.";
-  else if(/quota|429|RESOURCE_EXHAUSTED/i.test(m)) msg = 'Too many photos at once for the free tier. Wait a minute, then tap Try again.';
+  else if(isQuota(e)) msg = /per ?day|PerDay|daily/i.test(m)
+      ? "Google's free daily limit for photo reading is used up on this project. It resets each day (around midnight Pacific time)."
+      : "Google's free limit for photo reading was hit, even after waiting and trying other models. Wait a few minutes and tap Try again. If it keeps happening, send me the error details below.";
   else if(/Failed to fetch|NetworkError|network/i.test(m)) msg = 'No internet connection. Try again when you have signal.';
   else if(/JSON|chart data/i.test(m)) msg = 'The photo could not be read clearly. Try a sharper, straight-on photo.';
   else if(isModelMissing(e)) msg = 'None of the Gemini models the app tries are available to this project.';
