@@ -177,6 +177,14 @@ label.lbl{display:block;font-family:var(--head);font-weight:600;font-size:17px;m
 .rdot{width:12px;height:12px;border-radius:50%;display:inline-block;border:1.5px solid var(--ink);flex:none}
 [data-theme="sun"] .ck{font-weight:700}
 .bkh{font-family:var(--head);font-size:24px;margin:0 0 6px}
+#tabBackup{position:relative}
+#tabBackup[data-sync="synced"]::after,#tabBackup[data-sync="syncing"]::after,#tabBackup[data-sync="offline"]::after,#tabBackup[data-sync="error"]::after{content:"";position:absolute;top:5px;right:4px;width:8px;height:8px;border-radius:50%;background:#2F8F5B;box-shadow:0 0 0 1.5px var(--card)}
+#tabBackup[data-sync="syncing"]::after{background:#F2C200}
+#tabBackup[data-sync="offline"]::after{background:#8A93A6}
+#tabBackup[data-sync="error"]::after{background:#C8102E}
+.histlist{margin-top:10px;border-top:1px solid var(--line)}
+.histrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.histrow small{color:var(--muted)}
 .bkstats{display:flex;gap:10px;margin:8px 0 12px}
 .bkstats div{flex:1;border:1.5px solid var(--line);border-radius:8px;padding:8px;text-align:center}
 .bkstats b{display:block;font-family:var(--head);font-size:30px;line-height:1}
@@ -249,6 +257,18 @@ html.nozoom #field{touch-action:manipulation}
 </div>
 
 <script>
+/* =====================================================================
+   CLOUD SYNC SETUP
+   Replace null below with the firebaseConfig object from your Firebase
+   project (Project settings > Your apps > Web app). Example:
+   const FIREBASE_CONFIG = {
+     apiKey: "AIza...", authDomain: "my-spray-chart.firebaseapp.com",
+     projectId: "my-spray-chart", storageBucket: "my-spray-chart.appspot.com",
+     messagingSenderId: "1234567890", appId: "1:1234567890:web:abc123"
+   };
+   ===================================================================== */
+const FIREBASE_CONFIG = null;
+
 const KEY = 'sprayChart.v1';
 const BOXES = 12;
 const PCOL = ['var(--p1)','var(--p2)','var(--p3)','var(--p4)','var(--p5)'];
@@ -283,7 +303,26 @@ function T(){
   return t;
 }
 const tName = (t,i) => t.name.trim() || `Team ${i+1}`;
-function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+function hashStr(str){ let h=5381; for(let i=0;i<str.length;i++) h=(h*33 ^ str.charCodeAt(i))>>>0; return h.toString(36)+str.length; }
+const teamSig = t => hashStr(JSON.stringify([t.name,t.players]));
+// record when each team (and the pitch key) last changed, so devices know whose copy is newer
+function stamp(){
+  S.teams.forEach(t=>{
+    const sg = teamSig(t);
+    if(t._sig===undefined){ t._sig = sg; t.updatedAt = t.updatedAt || 0; }
+    else if(t._sig!==sg){ t._sig = sg; t.updatedAt = Date.now(); }
+  });
+  const ps = hashStr(JSON.stringify(S.pitches));
+  if(S._psig===undefined){ S._psig = ps; S.pitchesAt = S.pitchesAt || 0; }
+  else if(S._psig!==ps){ S._psig = ps; S.pitchesAt = Date.now(); }
+}
+function touch(t){ t.updatedAt = Date.now(); delete t._sig; }
+function forgetTeam(id){ S.deletedTeams = [...new Set([...(S.deletedTeams||[]), id])]; }
+function save(){
+  stamp();
+  try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){}
+  if(typeof cloudChanged==='function') cloudChanged();
+}
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -531,6 +570,7 @@ function lastBackupText(){
   return d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) + (days>=1?` (${days} day${days===1?'':'s'} ago)`:'');
 }
 function backupBanner(){
+  if(cloud.user) return '';
   if(bannerHidden || !hasUnbacked()) return '';
   if(countData(S.teams).abs === 0) return '';
   if(S.lastBackup && Date.now()-S.lastBackup < 2*864e5) return '';
@@ -540,15 +580,17 @@ function backupBanner(){
 function renderBackup(){
   const n = countData(S.teams), share = canShareFiles(), dirty = hasUnbacked();
   $('#app').innerHTML = `
-    <div class="panel">
-      <h2 class="bkh">Back up all data</h2>
+    <div class="panel" id="syncPanel">${syncPanelHTML()}</div>
+    <div class="panel" style="margin-top:16px">
+      <h2 class="bkh">Back up to a file</h2>
       <p style="margin:0 0 10px">One file with every team, lineup, at-bat, spray mark, note, and your pitch key.</p>
       <div class="bkstats">
         <div><b>${n.teams}</b><span>team${n.teams===1?'':'s'}</span></div>
         <div><b>${n.hitters}</b><span>hitter${n.hitters===1?'':'s'}</span></div>
         <div><b>${n.abs}</b><span>at-bat${n.abs===1?'':'s'}</span></div>
       </div>
-      <p class="bkstatus ${dirty&&n.abs?'warn':'ok'}">Last backup: <b>${lastBackupText()}</b><br>${dirty? (S.lastBackup?'You have changes since then.':'Nothing is backed up yet.') : 'Everything is backed up.'}</p>
+      ${cloud.user ? `<p class="bkstatus ok">Your charts are backed up by cloud sync. A file is an extra copy you can keep anywhere.<br>Last file backup: <b>${lastBackupText()}</b></p>`
+        : `<p class="bkstatus ${dirty&&n.abs?'warn':'ok'}">Last backup: <b>${lastBackupText()}</b><br>${dirty? (S.lastBackup?'You have changes since then.':'Nothing is backed up yet.') : 'Everything is backed up.'}</p>`}
       <div class="btnrow">
         ${share?`<button class="primary" id="bkShare">Save or send backup</button>`:''}
         <button class="${share?'ghost':'primary'}" id="bkDownload">Download backup file</button>
@@ -573,6 +615,249 @@ function renderBackup(){
 }
 if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
 
+/* ---------- cloud sync (Firebase: Google sign-in + Firestore) ---------- */
+const FB_VER = '10.12.2';
+const DEVICE = (()=>{ try{ let d=localStorage.getItem('sprayChart.device'); if(!d){ d=uid()+uid(); localStorage.setItem('sprayChart.device',d);} return d; }catch(e){ return uid(); } })();
+const cloud = {ready:false, loading:!!FIREBASE_CONFIG, user:null, status:'off', err:'', firstSnap:false,
+  settingsLoaded:false, settingsAt:0, remoteAt:{}, remoteData:{}, lastSync:0, timer:null, unsub:[], hist:null};
+const localDay = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const isEmptyTeam = t => !t.name.trim() && t.players.every(p=>!p.name.trim() && !p.num && !p.abs.length);
+
+async function cloudInit(){
+  if(!FIREBASE_CONFIG) return;
+  try{
+    const base = `https://www.gstatic.com/firebasejs/${FB_VER}/`;
+    const [A, Au, F] = await Promise.all([import(base+'firebase-app.js'), import(base+'firebase-auth.js'), import(base+'firebase-firestore.js')]);
+    const app = A.initializeApp(FIREBASE_CONFIG);
+    cloud.F = F; cloud.Au = Au;
+    try{ cloud.db = F.initializeFirestore(app, {localCache: F.persistentLocalCache({tabManager: F.persistentMultipleTabManager()})}); }
+    catch(e){ cloud.db = F.getFirestore(app); }
+    cloud.auth = Au.getAuth(app);
+    cloud.ready = true; cloud.loading = false;
+    Au.getRedirectResult(cloud.auth).catch(e=>{ cloud.err = authMsg(e); updateSyncUI(); });
+    Au.onAuthStateChanged(cloud.auth, u=>{
+      const was = cloud.user && cloud.user.uid;
+      cloud.user = u;
+      if(u && u.uid!==was) startSync();
+      if(!u) stopSync();
+      updateSyncUI(); rerenderSoon();
+    });
+  }catch(e){
+    console.error(e); cloud.loading = false; cloud.status = 'error';
+    cloud.err = 'Could not load cloud sync. Check your internet connection, then reload the page.'; updateSyncUI();
+  }
+}
+function authMsg(e){
+  const c = (e && e.code) || '';
+  if(c==='auth/unauthorized-domain') return `This web address (${location.hostname}) is not on your Firebase authorized domains list. In Firebase, go to Authentication, Settings, Authorized domains, and add it.`;
+  if(c==='auth/network-request-failed') return 'No internet connection. Try again when you have signal.';
+  if(c==='auth/operation-not-allowed') return 'Google sign-in is not turned on in Firebase. Go to Authentication, Sign-in method, and enable Google.';
+  return `Sign-in did not work (${c || (e && e.message) || 'unknown error'}).`;
+}
+async function cloudSignIn(){
+  if(!cloud.ready) return;
+  const Au = cloud.Au, p = new Au.GoogleAuthProvider();
+  p.setCustomParameters({prompt:'select_account'});
+  cloud.err = ''; updateSyncUI();
+  try{ await Au.signInWithPopup(cloud.auth, p); }
+  catch(e){
+    if(e.code==='auth/popup-blocked' || e.code==='auth/operation-not-supported-in-this-environment'){
+      try{ await Au.signInWithRedirect(cloud.auth, p); }catch(e2){ cloud.err = authMsg(e2); }
+    } else if(e.code!=='auth/popup-closed-by-user' && e.code!=='auth/cancelled-popup-request') cloud.err = authMsg(e);
+    updateSyncUI();
+  }
+}
+async function cloudSignOut(){
+  if(!confirm('Sign out of cloud sync on this device?\n\nYour charts stay on this device, but changes will stop syncing until you sign in again.')) return;
+  await cloud.Au.signOut(cloud.auth);
+}
+function stopSync(){
+  cloud.unsub.forEach(u=>{ try{u();}catch(e){} }); cloud.unsub = [];
+  cloud.firstSnap = false; cloud.settingsLoaded = false; cloud.remoteAt = {}; cloud.remoteData = {}; cloud.status = 'off'; cloud.hist = null;
+}
+function startSync(){
+  stopSync();
+  const F = cloud.F, uidc = cloud.user.uid;
+  cloud.status = 'syncing';
+  cloud.unsub.push(F.onSnapshot(F.collection(cloud.db,'users',uidc,'teams'), applyRemote,
+    err=>{ cloud.status='error'; cloud.err = err.code==='permission-denied' ? 'The cloud database refused access. Check the Firestore rules in Firebase.' : `Sync problem (${err.code}).`; updateSyncUI(); }));
+  cloud.unsub.push(F.onSnapshot(F.doc(cloud.db,'users',uidc,'meta','settings'), applySettings, ()=>{}));
+  updateSyncUI();
+}
+function fromRemote(id, r, loc){
+  const t = {id, name:r.name||'', players:JSON.parse(r.data||'[]'), cur:loc?loc.cur:null, curAB:loc?loc.curAB:null, updatedAt:r.updatedAt||0};
+  t.players.forEach(p=>p.abs.forEach(a=>['b','s'].forEach(k=>{ a[k] = Array.from({length:Math.max(BOXES,a[k].length)},(_,i)=>a[k][i]||null); })));
+  t._sig = teamSig(t);
+  return t;
+}
+function applyRemote(snap){
+  // wait for the first answer from the server before merging, so a fresh device doesn't guess
+  if(!cloud.firstSnap && snap.metadata.fromCache){ updateSyncUI(); return; }
+  let changed = false;
+  const seen = new Set();
+  snap.docs.forEach(d=>{
+    const r = d.data(), id = d.id; seen.add(id);
+    if(d.metadata.hasPendingWrites) return;          // our own write coming back
+    cloud.remoteAt[id] = Math.max(cloud.remoteAt[id]||0, r.updatedAt||0);
+    if(r.deleted) delete cloud.remoteData[id]; else cloud.remoteData[id] = r;
+    const i = S.teams.findIndex(t=>t.id===id), loc = S.teams[i];
+    if(r.deleted){ if(loc && (loc.updatedAt||0) <= (r.updatedAt||0)){ S.teams.splice(i,1); changed = true; } return; }
+    if(!loc){ if(!(S.deletedTeams||[]).includes(id)){ S.teams.push(fromRemote(id,r)); changed = true; } return; }
+    if((r.updatedAt||0) > (loc.updatedAt||0)){ S.teams[i] = fromRemote(id,r,loc); changed = true; }
+  });
+  if(!cloud.firstSnap){
+    cloud.firstSnap = true;
+    const remoteHas = snap.docs.some(d=>!d.data().deleted);
+    const before = S.teams.length;
+    // a blank starter team on a new device shouldn't upload over real teams
+    S.teams = S.teams.filter(t=> seen.has(t.id) || !isEmptyTeam(t) || !remoteHas);
+    if(S.teams.length!==before) changed = true;
+    // charts made before signing in get uploaded
+    S.teams.forEach(t=>{ if(!seen.has(t.id) && !isEmptyTeam(t) && !(t.updatedAt>0)){ t.updatedAt = Date.now(); changed = true; } });
+  }
+  if(changed){ if(!S.teams.length) S.teams.push(blankTeam()); T(); save(); rerenderSoon(); }
+  cloud.status = 'synced'; cloud.lastSync = Date.now();
+  scheduleUpload(0); updateSyncUI();
+}
+function applySettings(d){
+  if(d.metadata.fromCache && !cloud.settingsLoaded) return;
+  if(d.metadata.hasPendingWrites) return;
+  if(!cloud.settingsLoaded){
+    cloud.settingsLoaded = true;
+    const def = defaults().pitches;
+    if(!d.exists() && JSON.stringify(S.pitches)!==JSON.stringify(def) && !(S.pitchesAt>0)) S.pitchesAt = Date.now();
+  }
+  if(d.exists()){
+    const r = d.data(); cloud.settingsAt = r.pitchesAt || 0;
+    if((r.pitchesAt||0) > (S.pitchesAt||0) && Array.isArray(r.pitches)){
+      S.pitches = r.pitches; S.pitchesAt = r.pitchesAt; S._psig = hashStr(JSON.stringify(S.pitches)); save(); rerenderSoon();
+    }
+  }
+  scheduleUpload(0);
+}
+function cloudChanged(){ if(cloud.user) scheduleUpload(1200); }
+function scheduleUpload(ms){ clearTimeout(cloud.timer); cloud.timer = setTimeout(upload, ms); }
+async function keepHistory(id, prev){
+  // once a day, keep a copy of the team as it was before that day's first change
+  const F = cloud.F, ref = F.doc(cloud.db,'users',cloud.user.uid,'history',`${id}_${localDay()}`);
+  try{ const h = await F.getDocFromServer(ref); if(!h.exists()) await F.setDoc(ref, {teamId:id, name:prev.name||'', data:prev.data||'[]', savedAt:prev.updatedAt||Date.now(), day:localDay()}); }
+  catch(e){ /* offline: skip today's snapshot */ }
+}
+async function upload(){
+  if(!cloud.user || !cloud.firstSnap) return;
+  const F = cloud.F, uidc = cloud.user.uid, ops = [];
+  for(const t of S.teams){
+    if((t.updatedAt||0) > (cloud.remoteAt[t.id]||0)){
+      const prev = cloud.remoteData[t.id];
+      if(prev) keepHistory(t.id, prev);
+      const data = {name:t.name, data:JSON.stringify(t.players), updatedAt:t.updatedAt, deleted:false, device:DEVICE};
+      cloud.remoteAt[t.id] = t.updatedAt; cloud.remoteData[t.id] = data;
+      ops.push(F.setDoc(F.doc(cloud.db,'users',uidc,'teams',t.id), data));
+    }
+  }
+  const dels = S.deletedTeams || [];
+  if(dels.length){
+    for(const id of dels){
+      const prev = cloud.remoteData[id];
+      if(prev) keepHistory(id, prev);
+      const at = Date.now(); cloud.remoteAt[id] = at; delete cloud.remoteData[id];
+      ops.push(F.setDoc(F.doc(cloud.db,'users',uidc,'teams',id), {deleted:true, updatedAt:at, name:'', data:'', device:DEVICE}));
+    }
+    S.deletedTeams = []; try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){}
+  }
+  if(cloud.settingsLoaded && (S.pitchesAt||0) > cloud.settingsAt){
+    cloud.settingsAt = S.pitchesAt;
+    ops.push(F.setDoc(F.doc(cloud.db,'users',uidc,'meta','settings'), {pitches:S.pitches, pitchesAt:S.pitchesAt}));
+  }
+  if(!ops.length){ if(cloud.status!=='error'){ cloud.status='synced'; } updateSyncUI(); return; }
+  cloud.status = 'syncing'; updateSyncUI();
+  try{ await Promise.all(ops); cloud.status = 'synced'; cloud.lastSync = Date.now(); cloud.err=''; }
+  catch(e){ cloud.status = 'error'; cloud.err = e.code==='permission-denied' ? 'The cloud database refused the save. Check the Firestore rules in Firebase.' : `Could not save to the cloud (${e.code||e.message}).`; }
+  updateSyncUI();
+}
+async function loadHistory(){
+  const F = cloud.F;
+  cloud.hist = 'loading'; updateSyncUI();
+  try{
+    const qs = await F.getDocs(F.query(F.collection(cloud.db,'users',cloud.user.uid,'history'), F.orderBy('day','desc'), F.limit(60)));
+    cloud.hist = qs.docs.map(d=>({key:d.id, ...d.data()}));
+  }catch(e){ cloud.hist = []; cloud.err = 'Could not load cloud history. Check your connection.'; }
+  updateSyncUI();
+}
+function restoreHistory(key){
+  const h = (cloud.hist||[]).find(x=>x.key===key); if(!h) return;
+  let players; try{ players = JSON.parse(h.data); }catch(e){ return; }
+  const ab = players.reduce((k,p)=>k+p.abs.length,0);
+  const dayTxt = new Date(h.day+'T12:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
+  if(!confirm(`Restore ${h.name||'this team'} to how it was at the start of ${dayTxt}?\n\nThat version has ${ab} at-bat(s). The current version of this team is replaced on every device.`)) return;
+  const i = S.teams.findIndex(t=>t.id===h.teamId);
+  const t = fromRemote(h.teamId, {name:h.name, data:h.data}, S.teams[i]);
+  touch(t);
+  if(i>=0) S.teams[i] = t; else S.teams.push(t);
+  S.deletedTeams = (S.deletedTeams||[]).filter(id=>id!==h.teamId);
+  S.teamId = t.id; save(); render();
+}
+let renderWaiting = false;
+function rerenderSoon(){
+  const a = document.activeElement;
+  if(pending || (a && a.closest && a.closest('#app') && /INPUT|TEXTAREA|SELECT/.test(a.tagName))){ renderWaiting = true; return; }
+  const y = scrollY; render(); scrollTo(0,y);
+}
+document.addEventListener('focusout', ()=>setTimeout(()=>{ if(renderWaiting && !pending){ renderWaiting=false; rerenderSoon(); } },50));
+window.addEventListener('online', ()=>{ updateSyncUI(); scheduleUpload(0); });
+window.addEventListener('offline', updateSyncUI);
+
+function syncState(){
+  if(!FIREBASE_CONFIG) return 'none';
+  if(!cloud.user) return 'out';
+  if(cloud.status==='error') return 'error';
+  if(!navigator.onLine) return 'offline';
+  if(!cloud.firstSnap || cloud.status==='syncing') return 'syncing';
+  return 'synced';
+}
+function updateSyncUI(){
+  const st = syncState(), tb = $('#tabBackup');
+  if(tb) tb.dataset.sync = st;
+  const el = $('#syncPanel');
+  if(el){ const a=document.activeElement; if(!(a && el.contains(a) && a.tagName==='INPUT')) el.innerHTML = syncPanelHTML(); }
+}
+function syncPanelHTML(){
+  if(!FIREBASE_CONFIG) return `
+    <h2 class="bkh">Cloud sync</h2>
+    <p class="hint" style="margin-top:0">Cloud sync is not set up yet. Once your Firebase settings are added to the app file, you can sign in with Google here and your charts will stay backed up and in sync on every device.</p>`;
+  if(cloud.loading) return `<h2 class="bkh">Cloud sync</h2><p class="hint" style="margin-top:0">Loading cloud sync...</p>`;
+  const err = cloud.err ? `<p class="bkstatus warn" style="margin-top:10px">${esc(cloud.err)}</p>` : '';
+  if(!cloud.ready) return `<h2 class="bkh">Cloud sync</h2>${err}`;
+  if(!cloud.user) return `
+    <h2 class="bkh">Cloud sync</h2>
+    <p style="margin:0 0 10px">Sign in with the same Google account on your phone, iPad, and computer. Every change saves to the cloud and shows up on your other devices.</p>
+    <div class="btnrow" style="margin-top:0"><button class="primary gbtn" id="cloudIn">Sign in with Google</button></div>${err}
+    <p class="hint">Charts already on this device are uploaded when you sign in. If a device already has the same team, the most recently changed copy wins.</p>`;
+  const st = syncState();
+  const msg = {synced:`Everything is saved to the cloud${cloud.lastSync?` (checked ${new Date(cloud.lastSync).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})})`:''}.`,
+    syncing:'Saving to the cloud...', offline:'No signal. Changes are saved on this device and upload automatically when you are back online.',
+    error: cloud.err || 'Something went wrong with sync.'}[st];
+  let hist = '';
+  if(cloud.hist==='loading') hist = `<p class="hint">Loading history...</p>`;
+  else if(Array.isArray(cloud.hist)) hist = cloud.hist.length ? `<div class="histlist">${cloud.hist.map(h=>{
+      let ab=0; try{ ab = JSON.parse(h.data).reduce((k,p)=>k+p.abs.length,0);}catch(e){}
+      const dt = new Date(h.day+'T12:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
+      return `<div class="histrow"><span><b>${esc(h.name||'Unnamed team')}</b><br><small>Start of ${dt}, ${ab} at-bat${ab===1?'':'s'}</small></span><button class="ghost" data-hist="${esc(h.key)}">Restore</button></div>`; }).join('')}</div>`
+      : `<p class="hint">No history yet. A copy of each team is kept every day it changes.</p>`;
+  return `
+    <h2 class="bkh">Cloud sync</h2>
+    <p style="margin:0 0 8px">Signed in as <b>${esc(cloud.user.email||cloud.user.displayName||'Google account')}</b></p>
+    <p class="bkstatus ${st==='synced'?'ok':'warn'}">${esc(msg)}</p>
+    <div class="btnrow">
+      <button class="ghost" id="cloudNow">Sync now</button>
+      <button class="ghost" id="cloudHist">${Array.isArray(cloud.hist)?'Refresh history':'Cloud history'}</button>
+      <button class="ghost" id="cloudOut">Sign out</button>
+    </div>
+    ${hist}
+    <p class="hint">Cloud history keeps a copy of each team from the start of every day it changed, so you can undo a mistake even after it synced to all your devices.</p>`;
+}
+cloudInit();
+
 function applyTheme(){
   applyZoom();
   const th = S.theme || 'auto';
@@ -588,6 +873,7 @@ function render(){
   $('#tabChart').setAttribute('aria-selected', S.tab==='chart');
   $('#tabLineup').setAttribute('aria-selected', S.tab==='lineup');
   $('#tabBackup').setAttribute('aria-selected', S.tab==='backup');
+  $('#tabBackup').dataset.sync = syncState();
   S.tab==='chart' ? renderChart() : S.tab==='backup' ? renderBackup() : renderLineup();
 }
 
@@ -697,7 +983,7 @@ $('#app').addEventListener('click', e=>{
   if(q('#delTeam')){
     const t=T(), n=t.players.reduce((k,p)=>k+p.abs.length,0);
     if(confirm(`Delete ${tName(t,S.teams.indexOf(t))} with its lineup${n?` and ${n} at-bat(s)`:''}?`)){
-      S.teams.splice(S.teams.indexOf(t),1); S.teamId=S.teams[0].id; save(); render(); }
+      forgetTeam(t.id); S.teams.splice(S.teams.indexOf(t),1); S.teamId=S.teams[0].id; save(); render(); }
     return;
   }
   if(q('#addP')){ T().players.push(blankPlayer()); save(); render(); return; }
@@ -708,6 +994,11 @@ $('#app').addEventListener('click', e=>{
   if(el = q('[data-rm]')){ const i=T().players.findIndex(p=>p.id===el.dataset.rm), p=T().players[i];
     if(confirm(`Remove ${pName(p,i)}${p.abs.length?` and ${p.abs.length} at-bat(s)`:''}?`)){ T().players.splice(i,1); save(); render(); } return; }
   if(el = q('#pdf')){ exportPDF(el); return; }
+  if(q('#cloudIn')){ cloudSignIn(); return; }
+  if(q('#cloudOut')){ cloudSignOut(); return; }
+  if(q('#cloudNow')){ if(cloud.user){ cloud.err=''; if(cloud.status==='error') startSync(); else scheduleUpload(0); updateSyncUI(); } return; }
+  if(q('#cloudHist')){ loadHistory(); return; }
+  if(el = q('[data-hist]')){ restoreHistory(el.dataset.hist); return; }
   if(q('#bkDownload')){ downloadBackup(); return; }
   if(q('#bkShare')){ shareBackup(); return; }
   if(q('#bkNow')){ canShareFiles() ? shareBackup() : downloadBackup(); return; }
@@ -715,7 +1006,9 @@ $('#app').addEventListener('click', e=>{
   if(el = q('[data-restore]')){ restoreMode = el.dataset.restore; $('#impFile').value=''; $('#impFile').click(); return; }
   if(q('#print')){ S.tab='chart'; render(); setTimeout(()=>window.print(),100); return; }
   if(q('#clearABs')){ if(confirm(`Clear every at-bat for ${tName(T(),S.teams.indexOf(T()))} but keep the lineup?`)){ T().players.forEach(p=>p.abs=[]); T().curAB=null; save(); render(); } return; }
-  if(q('#reset')){ if(confirm('Erase every team, lineup, and at-bat?')){ S = defaults(); S.tab='lineup'; save(); render(); } return; }
+  if(q('#reset')){ if(confirm(`Erase every team, lineup, and at-bat?${cloud.user?'\n\nYou are signed in, so this also erases them from the cloud and your other devices.':''}`)){
+    const gone = S.teams.map(t=>t.id), keep = {theme:S.theme, noZoom:S.noZoom, deletedTeams:[...(S.deletedTeams||[]), ...gone]};
+    S = {...defaults(), ...keep}; S.tab='lineup'; save(); render(); } return; }
 });
 
 $('#app').addEventListener('input', e=>{
@@ -744,7 +1037,12 @@ $('#app').addEventListener('change', e=>{
     if(restoreMode==='replace'){
       if(!confirm(`Replace EVERYTHING on this device with the backup${when}?\n\nBackup has ${n.teams} team(s), ${n.hitters} hitter(s), ${n.abs} at-bat(s).\nWhat's on this device now will be erased.`)) return;
       const keep = {theme:S.theme, noZoom:S.noZoom};
+      const incIds = new Set(inc.teams.map(t=>t.id));
+      const gone = S.teams.filter(t=>!incIds.has(t.id)).map(t=>t.id);
+      const oldDel = (S.deletedTeams||[]).filter(id=>!incIds.has(id));
       S = {...defaults(), ...inc, ...(d.theme!==undefined?{}:keep), tab:'chart'};
+      S.deletedTeams = [...oldDel, ...gone];
+      S.teams.forEach(touch); S.pitchesAt = Date.now(); delete S._psig;
       if(!S.teams.find(t=>t.id===S.teamId)) S.teamId = S.teams[0].id;
       padBoxes(); markBackedUp(); save(); render();
       alert(`Restored ${n.teams} team(s) and ${n.abs} at-bat(s).`);
@@ -752,7 +1050,9 @@ $('#app').addEventListener('change', e=>{
       const ids = new Set(S.teams.map(t=>t.id));
       const fresh = inc.teams.filter(t=>!ids.has(t.id)), dup = inc.teams.filter(t=>ids.has(t.id));
       if(dup.length && confirm(`${dup.length} team(s) in the backup are already on this device. Replace those with the backup's version?\n\nOK = use the backup's version\nCancel = keep this device's version`))
-        dup.forEach(t=>{ S.teams[S.teams.findIndex(x=>x.id===t.id)] = t; });
+        dup.forEach(t=>{ touch(t); S.teams[S.teams.findIndex(x=>x.id===t.id)] = t; });
+      fresh.forEach(touch);
+      S.deletedTeams = (S.deletedTeams||[]).filter(id=>!inc.teams.some(t=>t.id===id));
       S.teams.push(...fresh); padBoxes(); save(); render();
       alert(`Added ${fresh.length} new team(s)${dup.length?` and checked ${dup.length} matching team(s)`:''}.`);
     }
