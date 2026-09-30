@@ -94,7 +94,8 @@ main{max-width:1100px;margin:0 auto;padding:12px 16px 40px}
 .inforow .scout{margin:0}
 .inforow .notes{display:flex;flex-direction:column}
 .inforow .notes textarea{flex:1}
-@media (min-width:640px){.inforow{grid-template-columns:auto minmax(0,1fr)}}
+@media (min-width:640px){.inforow{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}}
+@media (min-width:900px){.inforow{grid-template-columns:minmax(0,1.45fr) minmax(0,1fr)}}
 @media (min-width:900px){.grid{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);align-items:start}.fieldcol{position:sticky;top:12px;order:-1}}
 
 .panel{background:var(--card);border:1.5px solid var(--line);border-radius:10px;padding:12px}
@@ -169,8 +170,43 @@ label.lbl{display:block;font-family:var(--head);font-weight:600;font-size:17px;m
 .scout{margin-bottom:12px;padding:8px 12px}
 .scrow{display:grid;grid-template-columns:58px repeat(3,minmax(0,1fr));align-items:center;gap:2px 4px;padding:6px 0}
 .scrow.flags{display:flex;flex-wrap:wrap;gap:4px 20px}
+.tl{white-space:nowrap}
+.scout{container-type:inline-size}
+/* when the info box is wide enough: 1st pitch + Sac/Drag on the left, Steals + H&R on the right */
+@container (min-width:540px){
+  .scoutin{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-areas:"bats bats" "run run" "fp st" "bunt hr";column-gap:0}
+  .sc-bats{grid-area:bats}.sc-run{grid-area:run}.sc-fp{grid-area:fp}.sc-bunt{grid-area:bunt}.sc-st{grid-area:st}.sc-hr{grid-area:hr}
+  .sc-fp,.sc-bunt{padding-right:14px}
+  .sc-st,.sc-hr{padding-left:14px;border-left:1px solid var(--line)}
+  .sc-st{border-top:1px solid var(--line)}
+  .sc-bunt,.sc-hr{border-top:1px solid var(--line)}
+}
+.scrow.crow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+.scrow.crow .sclab{width:52px}
+.addc{border:1.5px solid var(--ink);border-radius:6px;background:var(--card);padding:4px 10px;font-weight:600;font-size:15px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:5px;border:1.5px solid var(--line);border-radius:999px;background:var(--paper);padding:3px 6px 3px 10px;font-family:var(--head);font-weight:700;font-size:17px}
+.chip b{font-size:15px;color:var(--strike)}
+.chip span{font-family:var(--body);font-size:11px;color:var(--muted);width:18px;height:18px;display:grid;place-items:center;border-radius:50%;background:var(--line)}
+.none{color:var(--muted);font-size:14px}
+.ctot{color:var(--muted);font-size:13px;margin-left:auto}
+.cgrid{display:grid;grid-template-columns:auto repeat(4,1fr);gap:8px;align-items:center}
+.cgrid .ch{font-size:12px;color:var(--muted);text-align:center;white-space:nowrap}
+.cgrid button{border:2px solid var(--ink);background:var(--card);border-radius:8px;padding:12px 0;font-family:var(--head);font-weight:700;font-size:24px}
+.cgrid button:active{background:var(--active)}
+[data-theme="sun"] .chip,[data-theme="sun"] .addc{border-width:2px;border-color:#000}
+.tl b{font-family:var(--head);font-size:21px;margin-left:3px}
+.tl.muted{color:var(--muted);font-size:14px}
+.scrow.bunts{display:flex;flex-wrap:wrap;align-items:center;gap:4px 28px}
+.scrow.tally1{display:flex;flex-wrap:wrap;align-items:center;gap:4px 16px}
+.cnt > span{font-family:var(--head);font-weight:700;font-size:17px;margin-right:2px}
+.cnt{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.cnt b{font-family:var(--head);font-size:21px;min-width:18px;text-align:center}
+.cbtn{width:32px;height:32px;border:1.5px solid var(--ink);border-radius:6px;background:var(--card);font-size:20px;font-weight:700;line-height:1;padding:0;display:grid;place-items:center}
+.cbtn:disabled{opacity:.35}
+[data-theme="sun"] .cbtn{border-width:2px}
 .scrow + .scrow{border-top:1px solid var(--line)}
-.sclab{font-family:var(--head);font-weight:700;font-size:17px}
+.sclab{font-family:var(--head);font-weight:700;font-size:17px;white-space:nowrap}
 .ck{display:inline-flex;align-items:center;gap:6px;min-height:36px;font-weight:500;cursor:pointer;white-space:nowrap;min-width:0}
 .ck input{width:24px;height:24px;margin:0;accent-color:var(--ink);flex:none}
 .ck input.rc{appearance:none;-webkit-appearance:none;border:3px solid var(--rc);border-radius:5px;background:transparent;display:grid;place-items:center}
@@ -274,6 +310,8 @@ header.top,main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-rig
   .picks button b.swc{width:34px;height:34px}
   .sheet .btnrow{margin-top:8px}
   .sheet .btnrow .ghost{padding:5px 10px}
+  .cgrid{gap:5px}
+  .cgrid button{padding:5px 0;font-size:20px}
 }
 @media print{
   header.top .tabs,.order,.navbtn,.marktype,.primary,.iconbtn,.btnrow{display:none!important}
@@ -295,6 +333,13 @@ header.top,main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-rig
 </header>
 <main id="app"></main>
 
+<div class="sheet" id="csheet" aria-hidden="true">
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="csheetTitle">
+    <h4 id="csheetTitle">What was the count?</h4>
+    <div class="cgrid" id="cgrid"></div>
+    <div class="btnrow" style="justify-content:flex-end"><button class="ghost" id="closeC">Cancel</button></div>
+  </div>
+</div>
 <div class="sheet" id="sheet" aria-hidden="true">
   <div class="card" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
     <h4 id="sheetTitle">Pick the pitch</h4>
@@ -314,23 +359,7 @@ header.top,main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-rig
      ===================================================================== -->
 <template id="firebaseSetup">
 PASTE FIREBASE CODE BELOW THIS LINE
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
 
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyCYBZWmMZSSSom-WoIX6FcxBjriPhnw1-Y",
-  authDomain: "spray-chart-8bc84.firebaseapp.com",
-  projectId: "spray-chart-8bc84",
-  storageBucket: "spray-chart-8bc84.firebasestorage.app",
-  messagingSenderId: "591525998599",
-  appId: "1:591525998599:web:36d41f1ca026a7468dbaa2"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
 PASTE FIREBASE CODE ABOVE THIS LINE
 </template>
 
@@ -451,15 +480,62 @@ function tendencies(p){
 const pct = (v,t) => t ? Math.round(100*v/t)+'%' : '';
 const RUNNER = [['red','Red','#D0192B'],['yellow','Yellow','#F2C200'],['green','Green','#1E9A4B']];
 function scoutBox(p){
+  const fp = firstPitch(p);
+  const cnt = (k,label) => `<span class="cnt"><span>${label}</span><button class="cbtn" data-cnt="${k}" data-d="-1" aria-label="${label} minus one" ${(p[k]||0)?'':'disabled'}>−</button><b>${p[k]||0}</b><button class="cbtn" data-cnt="${k}" data-d="1" aria-label="${label} plus one">+</button></span>`;
   const ck = (attr,val,on,label,dot='',color='') => `<label class="ck"><input type="checkbox" ${color?`class="rc" style="--rc:${color}"`:''} data-sc="${attr}" data-v="${val}" ${on?'checked':''}>${dot}<span>${label}</span></label>`;
-  return `<div class="scout panel">
-    <div class="scrow"><span class="sclab">Bats</span>
+  return `<div class="scout panel"><div class="scoutin">
+    <div class="scrow sc-bats"><span class="sclab">Bats</span>
       ${[['R','Right'],['L','Left'],['S','Switch']].map(([v,l])=>ck('bats',v,p.bats===v,l)).join('')}</div>
-    <div class="scrow"><span class="sclab">Runner</span>
+    <div class="scrow sc-run"><span class="sclab">Runner</span>
       ${RUNNER.map(([v,l,c])=>ck('runner',v,p.runner===v,l,'',c)).join('')}</div>
-    <div class="scrow flags">
-      ${ck('fps','1',!!p.fps,'First pitch swinger')}${ck('sac','1',!!p.sac,'Will sac')}${ck('drag','1',!!p.drag,'Will drag')}</div>
-  </div>`;
+    <div class="scrow tally1 sc-fp"><span class="sclab">1st pitch</span>
+      <span class="tl">Swing <b>${fp.sw}</b></span><span class="tl">Take <b>${fp.tk}</b></span>
+      <span class="tl muted">${fp.sw+fp.tk ? `${Math.round(100*fp.sw/(fp.sw+fp.tk))}% swing` : 'No pitches yet'}</span></div>
+    <div class="scrow bunts sc-bunt">${cnt('sacN','Sac')}${cnt('dragN','Drag')}</div>
+    ${countRow(p,'steals','Steals','Steal','sc-st')}
+    ${countRow(p,'hitruns','H&amp;R','Hit and run','sc-hr')}
+  </div></div>`;
+}
+const COUNTS = ['0-0','1-0','2-0','3-0','0-1','1-1','2-1','3-1','0-2','1-2','2-2','3-2'];
+// steals and hit-and-runs, logged by the count they happened in
+function countRow(p, key, label, long, cls=''){
+  const list = p[key] || [], tally = {};
+  list.forEach(c=>tally[c]=(tally[c]||0)+1);
+  const chips = COUNTS.filter(c=>tally[c]).map(c=>
+    `<button class="chip" data-rmcount="${key}" data-c="${c}" aria-label="Remove one ${long.toLowerCase()} at ${c}">${c}${tally[c]>1?` <b>×${tally[c]}</b>`:''}<span aria-hidden="true">✕</span></button>`).join('');
+  return `<div class="scrow crow ${cls}"><span class="sclab">${label}</span>
+    <button class="addc" data-addcount="${key}" data-l="${long}">+ Add</button>
+    <span class="chips">${chips || `<span class="none">None yet</span>`}</span>
+    ${list.length?`<span class="ctot">${list.length} total</span>`:''}</div>`;
+}
+let countPending = null;
+function openCount(key, long){
+  countPending = key;
+  $('#csheetTitle').textContent = `${long}: what was the count?`;
+  $('#cgrid').innerHTML = `<span></span>${[0,1,2,3].map(b=>`<span class="ch">${b} ball${b===1?'':'s'}</span>`).join('')}`
+    + [0,1,2].map(st=>`<span class="ch">${st} strike${st===1?'':'s'}</span>` + [0,1,2,3].map(b=>`<button data-count="${b}-${st}">${b}-${st}</button>`).join('')).join('');
+  $('#csheet').classList.add('open'); $('#csheet').setAttribute('aria-hidden','false');
+  $('#cgrid button').focus();
+}
+function closeCount(){ countPending = null; $('#csheet').classList.remove('open'); $('#csheet').setAttribute('aria-hidden','true'); }
+$('#cgrid') || 0;
+document.addEventListener('click', e=>{
+  const b = e.target.closest && e.target.closest('#cgrid [data-count]');
+  if(b && countPending){ const p = player(); (p[countPending] = p[countPending] || []).push(b.dataset.count); closeCount(); save(); const y=scrollY; render(); scrollTo(0,y); return; }
+  if(e.target.id==='closeC' || e.target.id==='csheet') closeCount();
+});
+// first pitch of each at-bat: taken (ball or called strike) or swung at.
+// An at-bat with no pitches entered but a spray mark means he put the first pitch in play.
+function firstPitch(p){
+  let sw = 0, tk = 0;
+  p.abs.forEach(a=>{
+    let f = null;
+    a.b.forEach(x=>{ if(x && x.q===1) f = {s:false}; });
+    a.s.forEach(x=>{ if(x && x.q===1) f = {s:true, sw:!!x.sw}; });
+    if(f){ if(f.s && f.sw) sw++; else tk++; }
+    else if(a.mark && ![...a.b, ...a.s].some(Boolean)) sw++;
+  });
+  return {sw, tk};
 }
 function fieldSVG(p){
   let marks = '';
@@ -1032,6 +1108,7 @@ $('#clearBox').onclick = ()=>setBox(null);
 $('#closeSheet').onclick = closePicker;
 $('#sheet').addEventListener('click',e=>{ if(e.target.id==='sheet') closePicker(); });
 document.addEventListener('keydown',e=>{
+  if(countPending && e.key==='Escape'){ closeCount(); return; }
   if(!pending) return;
   if(e.key==='Escape') closePicker();
   if(/^[1-5]$/.test(e.key)) setBox(+e.key);
@@ -1055,8 +1132,7 @@ $('#sunBtn').onclick = ()=>{
 $('#app').addEventListener('change', e=>{
   if(e.target.dataset && e.target.dataset.sc){
     const p = player(), k = e.target.dataset.sc, v = e.target.dataset.v;
-    if(k==='fps'||k==='sac'||k==='drag') p[k] = e.target.checked;
-    else p[k] = e.target.checked ? v : '';   // one choice per group; unchecking clears it
+    p[k] = e.target.checked ? v : '';   // one choice per group; unchecking clears it
     save(); const y=scrollY; render(); scrollTo(0,y); return;
   }
   if(e.target.id==='noZoom'){ S.noZoom = e.target.checked; save(); applyZoom(); }
@@ -1116,6 +1192,10 @@ $('#app').addEventListener('click', e=>{
   if(el = q('[data-rm]')){ const i=T().players.findIndex(p=>p.id===el.dataset.rm), p=T().players[i];
     if(confirm(`Remove ${pName(p,i)}${p.abs.length?` and ${p.abs.length} at-bat(s)`:''}?`)){ T().players.splice(i,1); save(); render(); } return; }
   if(el = q('#pdf')){ exportPDF(el); return; }
+  if(el = q('[data-addcount]')){ openCount(el.dataset.addcount, el.dataset.l); return; }
+  if(el = q('[data-rmcount]')){ const p=player(), list=p[el.dataset.rmcount]||[], i=list.lastIndexOf(el.dataset.c);
+    if(i>=0){ list.splice(i,1); save(); const y=scrollY; render(); scrollTo(0,y); } return; }
+  if(el = q('[data-cnt]')){ const p=player(), k=el.dataset.cnt; p[k] = Math.max(0,(p[k]||0) + (+el.dataset.d)); save(); const y=scrollY; render(); scrollTo(0,y); return; }
   if(q('#cloudIn')){ cloudSignIn(); return; }
   if(q('#cloudOut')){ cloudSignOut(); return; }
   if(q('#cloudNow')){ if(cloud.user){ cloud.err=''; if(cloud.status==='error' || !cloud.firstSnap) startSync(); else scheduleUpload(0); updateSyncUI(); } return; }
@@ -1239,7 +1319,8 @@ async function exportPDF(btn){
       text(fit(nm,bold,22,330),M,M+18,22,bold);
       const meta = [`Batting ${i+1}`, p.pos&&`Pos ${p.pos}`, p.bats&&`Bats ${p.bats}`, p.throws&&`Throws ${p.throws}`].filter(Boolean).join('   ');
       text(meta,W-M-reg.widthOfTextAtSize(clean(meta),11),M+16,11,reg,C.muted);
-      const flags = [p.fps&&'First pitch swinger', p.sac&&'Will sac', p.drag&&'Will drag'].filter(Boolean);
+      const fp = firstPitch(p);
+      const flags = [fp.sw+fp.tk ? `1st pitch: Swing ${fp.sw}, Take ${fp.tk}` : '', `Sac ${p.sacN||0}`, `Drag ${p.dragN||0}`].filter(Boolean);
       const rn = RUNNER.find(r=>r[0]===p.runner);
       let fxr = W-M;
       const fl = flags.join('    ');
@@ -1328,6 +1409,14 @@ async function exportPDF(btn){
       text(`${p.abs.length} at-bat${p.abs.length===1?'':'s'}, ${hits} hit${hits===1?'':'s'}`,tx,ty+3,9.5,reg,C.muted);
       ty+=18;
       // notes
+      const sumC = list => { const t={}; (list||[]).forEach(c=>t[c]=(t[c]||0)+1); return COUNTS.filter(c=>t[c]).map(c=>t[c]>1?`${c} x${t[c]}`:c).join(', '); };
+      [['Steals',p.steals],['H&R',p.hitruns]].forEach(([l,list])=>{
+        if(!(list&&list.length)) return;
+        text(`${l} (${list.length}):`,tx,ty,9.5,bold);
+        const w = bold.widthOfTextAtSize(clean(`${l} (${list.length}):`),9.5)+4;
+        text(fit(sumC(list),reg,9.5,tw-w),tx+w,ty,9.5); ty+=13;
+      });
+      if((p.steals||[]).length || (p.hitruns||[]).length) ty+=4;
       text('Notes',tx,ty,12,bold); ty+=15;
       const words = clean(p.notes).split(/\s+/).filter(Boolean); let ln='', lines=[];
       words.forEach(w=>{ const tryl = ln?ln+' '+w:w; if(reg.widthOfTextAtSize(tryl,9.5)>tw){ lines.push(ln); ln=w; } else ln=tryl; });
