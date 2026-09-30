@@ -67,8 +67,8 @@ button{cursor:pointer}
 :focus-visible{outline:3px solid var(--ball);outline-offset:2px}
 
 header.top{display:flex;align-items:center;gap:12px;padding:12px 16px 0;max-width:1100px;margin:0 auto}
-#teamSel{min-width:0;border:2px solid var(--ink);border-radius:8px;padding:6px 8px;background:var(--card);font-family:var(--head);font-weight:600;font-size:17px;max-width:40vw}
-header.top h1{font-family:var(--head);font-weight:700;font-size:28px;letter-spacing:.5px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#teamSel{min-width:0;flex:0 1 auto;border:2px solid var(--ink);border-radius:8px;padding:6px 8px;background:var(--card);font-family:var(--head);font-weight:600;font-size:17px;max-width:40vw}
+header.top h1{font-family:var(--head);font-weight:700;font-size:28px;letter-spacing:.5px;margin:0 auto 0 0;flex:0 0 auto;white-space:nowrap}
 .tabs{display:flex;border:2px solid var(--ink);border-radius:8px;overflow:hidden}
 .tabs button{border:0;background:transparent;padding:6px 12px;font-family:var(--head);font-weight:600;font-size:18px}
 .tabs button[aria-selected="true"]{background:var(--ink);color:var(--paper)}
@@ -288,7 +288,7 @@ html.nozoom #field{touch-action:manipulation}
 .picks button span{font-size:12px;opacity:.95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .sheet .btnrow{justify-content:space-between}
 
-@media (max-width:480px){header.top{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:8px 10px;align-items:center}header.top h1{font-size:24px;grid-column:1 / 3;grid-row:1}#teamSel{grid-column:3;grid-row:1;width:100%;max-width:none}#sunBtn{grid-column:1;grid-row:2}.tabs{grid-column:2 / 4;grid-row:2;width:100%}.tabs button{flex:1;padding-left:6px;padding-right:6px}}
+@media (max-width:640px){header.top{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:8px 10px;align-items:center}header.top h1{font-size:24px;grid-column:1 / 3;grid-row:1}#teamSel{grid-column:3;grid-row:1;width:100%;max-width:none}#sunBtn{grid-column:1;grid-row:2}.tabs{grid-column:2 / 4;grid-row:2;width:100%}.tabs button{flex:1;padding-left:6px;padding-right:6px}}
 
 /* ---- notch / rounded-corner safe areas (matters in landscape) ---- */
 header.top,main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
@@ -380,46 +380,35 @@ header.top,main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-rig
      ===================================================================== -->
 <template id="firebaseSetup">
 PASTE FIREBASE CODE BELOW THIS LINE
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
 
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyCYBZWmMZSSSom-WoIX6FcxBjriPhnw1-Y",
-  authDomain: "spray-chart-8bc84.firebaseapp.com",
-  projectId: "spray-chart-8bc84",
-  storageBucket: "spray-chart-8bc84.firebasestorage.app",
-  messagingSenderId: "591525998599",
-  appId: "1:591525998599:web:36d41f1ca026a7468dbaa2"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
 PASTE FIREBASE CODE ABOVE THIS LINE
 </template>
 
 <script>
-const FIREBASE_CONFIG = readFirebaseSetup();
+// Firebase settings come from a file named firebase-config.txt sitting next to index.html
+// in the GitHub repo, so updating index.html never wipes them out. The paste section
+// inside this file still works as a fallback.
 let FIREBASE_PROBLEM = '';
-// Reads the Firebase settings pasted into the setup section near the top of this file.
-// Accepts the whole snippet Firebase shows (import lines, script tags, comments) and pulls out just the settings.
-function readFirebaseSetup(){
-  const el = document.getElementById('firebaseSetup');
-  if(!el) return null;
-  const txt = ((el.content ? el.content.textContent : el.textContent) || '').replace(/PASTE FIREBASE CODE (BELOW|ABOVE) THIS LINE/g,'');
+function parseFirebaseText(txt, where){
+  txt = String(txt||'').replace(/PASTE FIREBASE CODE (BELOW|ABOVE) THIS LINE/g,'');
   const cfg = {}, re = /\b(apiKey|authDomain|projectId|storageBucket|messagingSenderId|appId|measurementId|databaseURL)\s*:\s*["'`]([^"'`]+)["'`]/g;
   let m; while((m = re.exec(txt))) cfg[m[1]] = m[2].trim();
   if(!Object.keys(cfg).length){
-    if(/\S/.test(txt)) setTimeout(()=>{ FIREBASE_PROBLEM = 'There is text in the Firebase setup section of the app file, but no Firebase settings were found in it. Copy the whole block that starts with const firebaseConfig = { from Firebase Project settings.'; },0);
+    if(/\S/.test(txt)) FIREBASE_PROBLEM = `There is text in ${where}, but no Firebase settings were found in it. Copy the whole block that starts with const firebaseConfig = { from Firebase Project settings.`;
     return null;
   }
   const need = ['apiKey','projectId','appId'].filter(k=>!cfg[k]);
-  if(need.length){ setTimeout(()=>{ FIREBASE_PROBLEM = `The Firebase settings in the app file are missing: ${need.join(', ')}. Copy the whole firebaseConfig block again.`; },0); return null; }
+  if(need.length){ FIREBASE_PROBLEM = `The Firebase settings in ${where} are missing: ${need.join(', ')}. Copy the whole firebaseConfig block again.`; return null; }
   if(!cfg.authDomain) cfg.authDomain = cfg.projectId + '.firebaseapp.com';
+  FIREBASE_PROBLEM = '';
   return cfg;
 }
+function readFirebaseSetup(){
+  const el = document.getElementById('firebaseSetup');
+  return el ? parseFirebaseText(el.content ? el.content.textContent : el.textContent, 'the setup section of the app file') : null;
+}
+let FIREBASE_CONFIG = readFirebaseSetup();
+const CAN_FETCH_CONFIG = /^https?:/.test(location.protocol);
 
 const KEY = 'sprayChart.v1';
 const BOXES = 12;
@@ -824,12 +813,20 @@ if(navigator.storage && navigator.storage.persist) navigator.storage.persist().c
 const FB_VER = '12.18.0';
 const AI_MODEL = 'gemini-3.8-flash';
 const DEVICE = (()=>{ try{ let d=localStorage.getItem('sprayChart.device'); if(!d){ d=uid()+uid(); localStorage.setItem('sprayChart.device',d);} return d; }catch(e){ return uid(); } })();
-const cloud = {ready:false, loading:!!FIREBASE_CONFIG, user:null, status:'off', err:'', firstSnap:false,
+const cloud = {ready:false, loading:!!FIREBASE_CONFIG || CAN_FETCH_CONFIG, user:null, status:'off', err:'', firstSnap:false,
   settingsLoaded:false, settingsAt:0, remoteAt:{}, remoteData:{}, lastSync:0, timer:null, unsub:[], hist:null};
 const localDay = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 const isEmptyTeam = t => !t.name.trim() && t.players.every(p=>!p.name.trim() && !p.num && !p.abs.length);
 
 async function cloudInit(){
+  if(!FIREBASE_CONFIG && CAN_FETCH_CONFIG){
+    try{
+      const r = await fetch('firebase-config.txt', {cache:'no-cache'});
+      if(r.ok) FIREBASE_CONFIG = parseFirebaseText(await r.text(), 'firebase-config.txt');
+    }catch(e){}
+  }
+  cloud.loading = !!FIREBASE_CONFIG;
+  updateSyncUI(); if(S.tab==='import') rerenderSoon();
   if(!FIREBASE_CONFIG) return;
   try{
     const base = `https://www.gstatic.com/firebasejs/${FB_VER}/`;
@@ -1053,7 +1050,8 @@ function syncPanelHTML(){
     <p class="bkstatus warn">${esc(FIREBASE_PROBLEM)}</p>`;
   if(!FIREBASE_CONFIG) return `
     <h2 class="bkh">Cloud sync</h2>
-    <p class="hint" style="margin-top:0">Cloud sync is not set up yet. Once your Firebase code is pasted into the CLOUD SYNC SETUP section of the app file, you can sign in with Google here and your charts will stay backed up and in sync on every device.</p>`;
+    <p class="bkstatus warn">Cloud sync is not set up on this site yet. The app could not find a file named <b>firebase-config.txt</b> next to index.html.</p>
+    <p class="hint">In your GitHub repo, in the same folder as index.html, click Add file, then Create new file. Name it <b>firebase-config.txt</b>, paste the code from Firebase Project settings, and commit. Then reload this page.</p>`;
   if(cloud.loading) return `<h2 class="bkh">Cloud sync</h2><p class="hint" style="margin-top:0">Loading cloud sync...</p>`;
   const err = cloud.err ? `<p class="bkstatus warn" style="margin-top:10px">${esc(cloud.err)}</p>` : '';
   if(!cloud.ready) return `<h2 class="bkh">Cloud sync</h2>${err}`;
@@ -1344,7 +1342,7 @@ function renderImport(){
   const ready = IMP.photos.some(p=>p.result && p.result.hitters.some(h=>h.include));
   $('#app').innerHTML = `
     <div class="batter" style="margin-top:0"><button class="navbtn" id="impBack">Back</button><div class="who"><h2>Import from photos</h2><p>Snap or pick pictures of paper spray charts and they are read into the app.</p></div></div>
-    ${!cfgOk ? `<div class="panel"><p class="bkstatus warn">Photo import uses your Firebase project. Paste your Firebase code into the app file first (see the Backup tab).</p></div>` : `
+    ${!cfgOk ? `<div class="panel">${cloud.loading ? `<p class="hint" style="margin:0">Checking Firebase settings...</p>` : `<p class="bkstatus warn">${FIREBASE_PROBLEM ? esc(FIREBASE_PROBLEM) : 'Photo import uses your Firebase project, and the app could not find its settings. Add a file named <b>firebase-config.txt</b> to your GitHub repo next to index.html with your Firebase code in it (the Backup tab explains how), then reload.'}</p>`}</div>` : `
     <div class="panel">
       <label class="lbl" style="margin-top:0" for="impTeam">1. Which team?</label>
       <select id="impTeam" class="ghost" style="width:100%;max-width:420px" ${IMP.busy?'disabled':''}>${teamOpts}</select>
