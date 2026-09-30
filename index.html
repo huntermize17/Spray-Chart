@@ -1466,27 +1466,51 @@ async function photoToJpeg(file){
   } finally { URL.revokeObjectURL(url); }
 }
 function aiPrompt(){
-  return `You are reading a photo of a handwritten baseball spray chart sheet. Extract every hitter and every at-bat you can read.
+  return `You are reading a photo (or PDF page) of a coach's handwritten baseball spray chart sheet, one hitter per sheet. Extract everything described below.
 
-Sheet layout: each hitter section has a header with the hitter's name, jersey number, team and position, then the printed choices "Bats: R / L / S" and "Throws: R / L", then a notes area, a drawing of a baseball field, and a table of numbered at-bat rows. Each at-bat row has a "B" line of small boxes for balls and an "S" line of small boxes for strikes, and a Result column. Each filled box holds a pitch type number 1-5 (${S.pitches.map((n,i)=>`${i+1}=${n}`).join(', ')}). In the S boxes, a number with a circle drawn around it means the batter swung at that pitch; an uncircled number is a called strike (take). The B and S boxes are lined up in columns, and the column position matters: many coaches chart pitch-by-pitch, so column 1 is the first pitch, column 2 the second, and so on, with the mark in the B line if it was a ball or the S line if it was a strike. Report each box's column exactly as it sits on the sheet, even if there are gaps.
+THE SHEET
+- Header: PLAYER name, # (jersey number), POS, and "BATS: ( L R S )". All three letters are printed on every sheet. Report only the one the coach marked (circled, checked, crossed through, or written over). Look closely; do not guess.
+- A colored label or sticker at the top right is the team name, not anything about the hitter.
+- Left box: "RUN: GREEN YELLOW RED" (all three words are printed). The one the coach marked (a slash or check mark through it, a circle, or an underline) is the hitter's runner speed. Also "1st PITCH SWING / TAKE" tally marks, "BUNT: SAC / DRAG / PUSH" tally marks, "STEAL COUNTS" and "H&R COUNTS" (counts like 1-0 or 2-1 written in), and CLASS, PLAN and COMMENTS areas.
+- At-bat table on the right: rows numbered 1-24. Each row has a B line (balls) and an S line (strikes) of small boxes lined up in columns, and a result written at the far right. The coach charts pitch-by-pitch: column 1 is the 1st pitch, column 2 the 2nd, and so on. Each pitch is written as the pitch type in the B line if it was a ball or the S line if it was a strike. Pitch types are abbreviations: FB = fastball, CB or CU = curveball, SL = slider, CH = changeup, and others. A pitch with a circle drawn around it in the S line means the batter SWUNG at it; an uncircled pitch in the S line was TAKEN for a called strike.
+- Field drawing at the bottom left: a square box. HOME PLATE IS THE BOTTOM-LEFT CORNER of the box. The left-field foul line runs straight UP the left edge of the box. The right-field foul line runs straight RIGHT along the bottom edge. The small square in that corner is the infield (second base is its top-right corner), the small circle is the pitcher's mound, and the large arc is the edge of the infield. Everything beyond the arc is outfield. A line heading straight up is down the left-field line, straight right is down the right-field line, and the 45-degree diagonal toward the top-right corner is dead center field. Names written near the drawing are fielders, ignore them.
+- Each ball in play is a pen line starting at home plate (bottom-left corner) and ending where the ball went. Dotted or dashed line = ground ball. Solid line that curves or arcs = fly ball. Solid straight line = line drive. An arrowhead at the end means the ball got through for a hit; a short cross bar "T" at the end means it was caught or fielded there. Lines are usually NOT numbered.
 
-On the field drawing, each ball in play is usually drawn as a LINE starting at home plate and ending where the ball landed or was fielded. The line style tells the kind of hit:
-- dotted or dashed line = ground ball (GB)
-- solid line that curves or arcs = fly ball (FB)
-- solid straight line = line drive (LD)
-The at-bat number is usually written near the end of the line. Some sheets instead use shapes: square = ground ball, circle = fly ball, triangle = line drive, with the at-bat number inside or beside the shape. Look carefully at every line on the field; there is usually one for each ball put in play.
+MATCHING LINES TO AT-BATS
+For every at-bat whose result is a ball in play, find its line on the field and report where it ends. Use the result to match: F-7 or F7 = fly ball to the left fielder (a curved line ending in left field, up and slightly right of the left edge), F-8 = fly to center, F-9 = fly to right, P-5 = pop up to the third baseman, L-6 = line drive to the shortstop, 6-3 or 4-3 = ground ball to that infielder, 1-3 = ground ball to the pitcher, 3U = ground ball to the first baseman, 1B-7 = single to left field, 2B = double (use the line with an arrowhead). Pen color can help (a blue at-bat usually has a blue line). Each line belongs to only one at-bat. If a line can't be matched with confidence, put it in "unmatchedLines" instead.
 
-Return ONLY JSON, no other text, in exactly this shape:
-{"hitters":[{"name":"","number":"","position":"","bats":"","throws":"","runner":"","notes":"","atBats":[{"n":1,"pitches":[{"row":"S","col":1,"pitch":1,"swung":false},{"row":"B","col":2,"pitch":2},{"row":"B","col":3,"pitch":1}],"result":"6-3"}],"sprays":[{"ab":1,"hitType":"GB","angle":-20,"depth":0.4}]}]}
+POSITIONS
+Give each line's END POINT as fractions of the field box: "x" = distance from the LEFT edge of the box (0) to the right edge (1); "y" = distance from the BOTTOM edge of the box (0) to the top edge (1). So home plate is x 0, y 0; second base is about x 0.32, y 0.32; a ball ending near the top middle of the box is about x 0.45, y 0.95.
+
+PITCH KEY for the app: ${S.pitches.map((n,i)=>`${i+1}=${n}`).join(', ')}. Convert each written pitch type to the closest number (FB = the fastball number, and so on). Use 5 for anything that doesn't fit.
+
+Return ONLY JSON in exactly this shape:
+{"hitters":[{"name":"","number":"","position":"","bats":"","runner":"","notes":"","sac":0,"drag":0,"steals":["1-0"],"hitRuns":[],"atBats":[{"n":1,"pitches":[{"row":"B","col":1,"pitch":1},{"row":"S","col":2,"pitch":3,"swung":true}],"result":"F-7","hitType":"FB","spray":{"x":0.2,"y":0.8,"end":"cap"}}],"unmatchedLines":[{"x":0.5,"y":0.3,"hitType":"GB"}]}]}
 
 Rules:
-- "n" is the at-bat number printed on the row. Skip rows with nothing written in them.
-- "pitches": one entry per filled box. "row" is "B" or "S". "col" is the box's column counted from the left starting at 1, measured the same way for both lines (a B box and the S box directly below it have the same col). "pitch" is the number 1-5 in it. "swung" is true only for a circled number in the S line.
-- "result": copy exactly what is written (like 1B, 2B, HR, BB, K, 6-3, F8, L6, P4). Empty string if blank.
-- "sprays": one entry for EVERY line or shape drawn on that hitter's field. "ab" = the at-bat number written by it (null if you can't tell). "hitType" = "GB", "FB" or "LD" from the line style or shape. "angle" and "depth" describe the END of the line (where the ball went), or the center of the shape. angle in degrees: 0 = straight to center field, negative toward the left field side (-45 = on the left field foul line), positive toward the right field side (+45 = on the right field foul line). depth: 0 = home plate, 0.3 = the bases, 0.45 = the edge of the infield dirt, 0.7 = shallow outfield, 1.0 = the outfield fence.
-- "bats" and "throws": the letters R, L and S are ALWAYS printed on the form, so never report a letter just because it is printed. Report only the one letter the coach marked by circling, checking, underlining, highlighting, crossing out the others, or writing next to it. Zoom in on that spot and compare the letters carefully before answering. If none is clearly marked, use "".
-- "runner": the hitter's running speed, "green" (fast), "yellow" (average) or "red" (slow). Coaches mark it with color: a green, yellow or red marker, highlighter, dot, sticker, circle or box somewhere in the hitter's section (often near the name or header), or the word or letter written out (Green/Yellow/Red, G/Y). Look at the actual colors in the photo. A red "R" next to "Bats" is not the runner color unless it is clearly a separate speed mark. Use "" if there is no speed mark.
-- If the photo shows more than one hitter, return each one. Never guess or invent values you cannot read; use "" or null instead.`;
+- "n" = the at-bat row number. Skip empty rows.
+- "pitches": one entry per filled box. "col" = the box's column counted from the left starting at 1, the same for the B and S lines (a B box and the S box directly under it share a col). "swung" only for circled S-line pitches.
+- "result": exactly as written (F-7, 1-3, K, 2B, 4-3, BB, HBP, 1B-7, 3U...).
+- "hitType": "GB", "FB" or "LD" from the line style (or from the result if there is no line), "" for strikeouts, walks and HBP.
+- "spray": the matched line's end point, or null if the at-bat has no line. "end" = "arrow", "cap" or "".
+- "bats": "R", "L", "S" or "". "runner": "green", "yellow", "red" or "".
+- "sac" and "drag": the number of tally marks next to SAC and DRAG (0 if none). "steals" and "hitRuns": the counts written under STEAL COUNTS and H&R COUNTS, like "1-0".
+- "notes": anything written under CLASS, PLAN or COMMENTS (skip the fielder names by the drawing).
+- If there is more than one hitter, return each one. Never invent anything you cannot read; use "", 0 or null.`;
+}
+// field drawing on the paper sheet: home in the bottom-left corner of a square box,
+// left-field line up the left edge, right-field line along the bottom.
+// Landmarks measured on the sheet (box widths from home) mapped to this app's field (fence = 1).
+const SHEET_DEPTH = [[0,0],[0.22,0.18],[0.45,0.38],[0.60,0.50],[1.0,0.95],[1.42,1.12]];
+function sheetDepth(d){
+  for(let i=1;i<SHEET_DEPTH.length;i++){ const [a0,b0]=SHEET_DEPTH[i-1], [a1,b1]=SHEET_DEPTH[i];
+    if(d<=a1) return b0 + (b1-b0)*(d-a0)/(a1-a0); }
+  return 1.12;
+}
+function boxToField(x, y){
+  x = Math.max(0,Math.min(1.05,+x)); y = Math.max(0,Math.min(1.05,+y));
+  const ang = Math.atan2(x, y)*180/Math.PI - 45;       // straight up = -45 (LF line), straight right = +45 (RF line)
+  return sprayXY(ang, sheetDepth(Math.hypot(x, y)));
 }
 // fielder spots for results like 6-3 or F8 when no shape was drawn
 const FIELDER = {1:[200,247],2:[200,290],3:[246,232],4:[226,200],5:[154,232],6:[174,200],7:[112,118],8:[200,78],9:[288,118]};
@@ -1512,22 +1536,21 @@ function toAtBat(x){
   (x.strikes||[]).slice(0,BOXES).forEach((st,i)=>{ const c = +(st&&st.pitch!==undefined?st.pitch:st); if(c>=1&&c<=5) a.s[i] = {c, q:q++, sw:!!(st&&st.swung)}; });
   a.result = String(x.result||'').trim().slice(0,20);
   const t = ['GB','FB','LD'].includes(x.hitType) ? x.hitType : '';
-  if(t && x.spray && isFinite(x.spray.angle) && isFinite(x.spray.depth)){
-    const ang = Math.max(-47,Math.min(47,+x.spray.angle))*Math.PI/180, r = Math.max(0.05,Math.min(1.15,+x.spray.depth))*283;
-    a.mark = {x:Math.round(Math.max(12,Math.min(388,200+r*Math.sin(ang)))), y:Math.round(Math.max(14,Math.min(300,300-r*Math.cos(ang)))), t};
-  } else if(t){
-    const m = a.result.toUpperCase().match(/^[FLPG]?\s*([1-9])/);
-    if(m && FIELDER[m[1]]) a.mark = {x:FIELDER[m[1]][0], y:FIELDER[m[1]][1], t};
-  }
+  if(t && x.spray && isFinite(x.spray.x) && isFinite(x.spray.y)){ a.mark = {...boxToField(x.spray.x, x.spray.y), t}; x = {...x, spray:null}; }
+  else if(t) a.hitTypeGuess = t;
+  else if(t && x.spray && isFinite(x.spray.angle) && isFinite(x.spray.depth)) a.mark = {...sprayXY(x.spray.angle, x.spray.depth), t};
+  // no drawn line: applySprays later tries unmatched lines, then the fielder named in the result
   a.n = +x.n || 0;
   return a;
 }
 // what a written result says about the hit: type (F8 = fly) and fielder number
 function resultGuess(r){
-  r = String(r||'').toUpperCase().replace(/\s/g,''); let m;
-  if((m = r.match(/^(?:F|P|FO|PO)([1-9])/))) return {t:'FB', f:+m[1]};
-  if((m = r.match(/^(?:L|LO)([1-9])/))) return {t:'LD', f:+m[1]};
-  if((m = r.match(/^(?:G|GO)?([1-9])-[1-9]/))) return {t:'GB', f:+m[1]};
+  r = String(r||'').toUpperCase().replace(/\s/g,'').replace(/[.]/g,'-'); let m;
+  if((m = r.match(/^(?:F|P|FO|PO)-?([1-9])/))) return {t:'FB', f:+m[1]};
+  if((m = r.match(/^(?:L|LO)-?([1-9])/))) return {t:'LD', f:+m[1]};
+  if((m = r.match(/^(?:G|GO)?-?([1-9])-[1-9]/))) return {t:'GB', f:+m[1]};
+  if((m = r.match(/^([1-9])U/))) return {t:'GB', f:+m[1]};
+  if((m = r.match(/^(?:1B|2B|3B|HR|E)-?([1-9])/))) return {t:'', f:+m[1]};
   return {t:'', f:0};
 }
 const sprayXY = (angle, depth) => {
@@ -1547,8 +1570,8 @@ function applySprays(abs, sprays){
   // unnumbered lines: match each to the only at-bat it could belong to (same hit type, same side of the field)
   let open = abs.filter(a=>!a._sprayed && inPlay(a.result));
   const fits = (sp,a) => {
-    const g = resultGuess(a.result);
-    if(g.t && g.t!==sp.hitType) return false;
+    const g = resultGuess(a.result), gt = g.t || a.hitTypeGuess;
+    if(gt && gt!==sp.hitType) return false;
     if(g.f){ const [fx,fy] = FIELDER[g.f]; const fa = Math.atan2(fx-200, 300-fy)*180/Math.PI; if(g.f>2 && Math.abs(fa - sp.angle) > 28) return false; }
     return true;
   };
@@ -1566,7 +1589,8 @@ function applySprays(abs, sprays){
   abs.forEach(a=>{
     if(a.mark) return;
     const g = resultGuess(a.result);
-    if(g.t && FIELDER[g.f]) a.mark = {x:FIELDER[g.f][0], y:FIELDER[g.f][1], t:g.t};
+    const t = g.t || a.hitTypeGuess;
+    if(t && FIELDER[g.f]) a.mark = {x:FIELDER[g.f][0], y:FIELDER[g.f][1], t};
   });
 }
 function parseAI(text, team){
@@ -1576,10 +1600,17 @@ function parseAI(text, team){
   const d = JSON.parse(t.slice(i,j+1));
   const hitters = (d.hitters||[]).map(h=>{
     const abs = (h.atBats||[]).map(toAtBat).filter(a=>a.result || a.mark || a.b.some(Boolean) || a.s.some(Boolean)).sort((x,y)=>x.n-y.n);
-    applySprays(abs, h.sprays||[]);
+    const loose = (h.unmatchedLines||[]).filter(l=>l && isFinite(l.x) && isFinite(l.y))
+      .map(l=>{ const xy = boxToField(l.x,l.y); const ang = Math.atan2(xy.x-200, 300-xy.y)*180/Math.PI;
+        return {ab:null, hitType:l.hitType, angle:ang, depth:Math.hypot(xy.x-200,300-xy.y)/283}; });
+    applySprays(abs, (h.sprays||[]).concat(loose));
+    abs.forEach(a=>delete a.hitTypeGuess);
     const o = {name:String(h.name||'').trim(), number:String(h.number||'').replace(/^#/,'').trim(), position:String(h.position||'').trim().slice(0,4),
       bats:['R','L','S'].includes(String(h.bats||'').toUpperCase())?String(h.bats).toUpperCase():'', throws:['R','L'].includes(String(h.throws||'').toUpperCase())?String(h.throws).toUpperCase():'',
-      runner:['green','yellow','red'].includes(String(h.runner||'').toLowerCase())?String(h.runner).toLowerCase():'', notes:String(h.notes||'').trim(), atBats:abs, include:true};
+      runner:['green','yellow','red'].includes(String(h.runner||'').toLowerCase())?String(h.runner).toLowerCase():'',
+      sac:Math.max(0,parseInt(h.sac)||0), drag:Math.max(0,parseInt(h.drag)||0),
+      steals:(h.steals||[]).map(String).filter(c=>COUNTS.includes(c.trim())).map(c=>c.trim()),
+      hitRuns:(h.hitRuns||[]).map(String).filter(c=>COUNTS.includes(c.trim())).map(c=>c.trim()), notes:String(h.notes||'').trim(), atBats:abs, include:true};
     o.target = autoMatch(o, team);
     return o;
   }).filter(h=>h.name || h.number || h.atBats.length);
@@ -1732,6 +1763,10 @@ function commitImport(){
     if(!p.pos) p.pos = h.position;
     if(h.bats) p.bats = h.bats;
     if(h.runner) p.runner = h.runner;
+    if(h.sac) p.sacN = Math.max(p.sacN||0, h.sac);
+    if(h.drag) p.dragN = Math.max(p.dragN||0, h.drag);
+    if(h.steals && h.steals.length && !(p.steals||[]).length) p.steals = h.steals.slice();
+    if(h.hitRuns && h.hitRuns.length && !(p.hitruns||[]).length) p.hitruns = h.hitRuns.slice();
     if(h.throws) p.throws = h.throws;
     if(h.notes && !p.notes.includes(h.notes)) p.notes = p.notes ? p.notes + '\n' + h.notes : h.notes;
     h.atBats.forEach(a=>{ const c = {...a}; delete c.n; c.id = uid(); p.abs.push(c); addedAB++; });
