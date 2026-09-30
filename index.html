@@ -256,25 +256,38 @@ html.nozoom #field{touch-action:manipulation}
   </div>
 </div>
 
+<!-- =====================================================================
+     CLOUD SYNC SETUP
+     Paste the code Firebase gives you (Project settings > Your apps > Web app)
+     between the two PASTE lines below. You can paste all of it, including
+     the import lines or script tags. A paste mistake here can't break the app.
+     ===================================================================== -->
+<template id="firebaseSetup">
+PASTE FIREBASE CODE BELOW THIS LINE
+
+PASTE FIREBASE CODE ABOVE THIS LINE
+</template>
+
 <script>
-/* =====================================================================
-   CLOUD SYNC SETUP
-   Replace null below with the firebaseConfig object from your Firebase
-   project (Project settings > Your apps > Web app). Example:
-   const FIREBASE_CONFIG = {
-     apiKey: "AIza...", authDomain: "my-spray-chart.firebaseapp.com",
-     projectId: "my-spray-chart", storageBucket: "my-spray-chart.appspot.com",
-     messagingSenderId: "1234567890", appId: "1:1234567890:web:abc123"
-   };
-   ===================================================================== */
-const FIREBASE_CONFIG = rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
+const FIREBASE_CONFIG = readFirebaseSetup();
+let FIREBASE_PROBLEM = '';
+// Reads the Firebase settings pasted into the setup section near the top of this file.
+// Accepts the whole snippet Firebase shows (import lines, script tags, comments) and pulls out just the settings.
+function readFirebaseSetup(){
+  const el = document.getElementById('firebaseSetup');
+  if(!el) return null;
+  const txt = ((el.content ? el.content.textContent : el.textContent) || '').replace(/PASTE FIREBASE CODE (BELOW|ABOVE) THIS LINE/g,'');
+  const cfg = {}, re = /\b(apiKey|authDomain|projectId|storageBucket|messagingSenderId|appId|measurementId|databaseURL)\s*:\s*["'`]([^"'`]+)["'`]/g;
+  let m; while((m = re.exec(txt))) cfg[m[1]] = m[2].trim();
+  if(!Object.keys(cfg).length){
+    if(/\S/.test(txt)) setTimeout(()=>{ FIREBASE_PROBLEM = 'There is text in the Firebase setup section of the app file, but no Firebase settings were found in it. Copy the whole block that starts with const firebaseConfig = { from Firebase Project settings.'; },0);
+    return null;
   }
-};
+  const need = ['apiKey','projectId','appId'].filter(k=>!cfg[k]);
+  if(need.length){ setTimeout(()=>{ FIREBASE_PROBLEM = `The Firebase settings in the app file are missing: ${need.join(', ')}. Copy the whole firebaseConfig block again.`; },0); return null; }
+  if(!cfg.authDomain) cfg.authDomain = cfg.projectId + '.firebaseapp.com';
+  return cfg;
+}
 
 const KEY = 'sprayChart.v1';
 const BOXES = 12;
@@ -815,7 +828,7 @@ window.addEventListener('online', ()=>{ updateSyncUI(); scheduleUpload(0); });
 window.addEventListener('offline', updateSyncUI);
 
 function syncState(){
-  if(!FIREBASE_CONFIG) return 'none';
+  if(!FIREBASE_CONFIG) return FIREBASE_PROBLEM ? 'error' : 'none';
   if(!cloud.user) return 'out';
   if(cloud.status==='error') return 'error';
   if(!navigator.onLine) return 'offline';
@@ -829,9 +842,12 @@ function updateSyncUI(){
   if(el){ const a=document.activeElement; if(!(a && el.contains(a) && a.tagName==='INPUT')) el.innerHTML = syncPanelHTML(); }
 }
 function syncPanelHTML(){
+  if(!FIREBASE_CONFIG && FIREBASE_PROBLEM) return `
+    <h2 class="bkh">Cloud sync</h2>
+    <p class="bkstatus warn">${esc(FIREBASE_PROBLEM)}</p>`;
   if(!FIREBASE_CONFIG) return `
     <h2 class="bkh">Cloud sync</h2>
-    <p class="hint" style="margin-top:0">Cloud sync is not set up yet. Once your Firebase settings are added to the app file, you can sign in with Google here and your charts will stay backed up and in sync on every device.</p>`;
+    <p class="hint" style="margin-top:0">Cloud sync is not set up yet. Once your Firebase code is pasted into the CLOUD SYNC SETUP section of the app file, you can sign in with Google here and your charts will stay backed up and in sync on every device.</p>`;
   if(cloud.loading) return `<h2 class="bkh">Cloud sync</h2><p class="hint" style="margin-top:0">Loading cloud sync...</p>`;
   const err = cloud.err ? `<p class="bkstatus warn" style="margin-top:10px">${esc(cloud.err)}</p>` : '';
   if(!cloud.ready) return `<h2 class="bkh">Cloud sync</h2>${err}`;
