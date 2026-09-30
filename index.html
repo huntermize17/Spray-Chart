@@ -89,7 +89,12 @@ main{max-width:1100px;margin:0 auto;padding:12px 16px 40px}
 .navbtn{border:1.5px solid var(--line);background:var(--card);border-radius:6px;padding:8px 12px;font-family:var(--head);font-weight:600;font-size:17px}
 
 .grid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
-@media (min-width:900px){.grid{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);align-items:start}.fieldcol{position:sticky;top:12px}}
+.inforow{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-bottom:16px}
+.inforow .scout{margin:0}
+.inforow .notes{display:flex;flex-direction:column}
+.inforow .notes textarea{flex:1}
+@media (min-width:640px){.inforow{grid-template-columns:auto minmax(0,1fr)}}
+@media (min-width:900px){.grid{grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);align-items:start}.fieldcol{position:sticky;top:12px}}
 
 .panel{background:var(--card);border:1.5px solid var(--line);border-radius:10px;padding:12px}
 .fieldwrap svg{width:100%;height:auto;display:block;touch-action:manipulation;cursor:crosshair}
@@ -357,10 +362,17 @@ function renderChart(){
       <div class="who"><h2>${idx+1}. ${esc(pName(p,idx))}</h2><p>${meta||'Add details on the Lineup tab'}</p></div>
       <button class="navbtn" id="next" aria-label="Next batter">Next</button>
     </div>
+    <div class="inforow">
+      ${scoutBox(p)}
+      <div class="notes"><label class="lbl" for="notes" style="margin-top:0">Notes</label><textarea id="notes" placeholder="Tendencies, approach, what he chases">${esc(p.notes)}</textarea></div>
+    </div>
     <div class="grid">
+      <section>
+        <div class="abhead"><h3>At-bats</h3><span style="display:flex;gap:6px"><button class="ghost" id="pdf">Team PDF</button><button class="primary" id="newAB">New at-bat</button></span></div>
+        <datalist id="results">${RESULTS.map(r=>`<option value="${r}">`).join('')}</datalist>
+        <div id="abs">${abs}</div>
+      </section>
       <section class="fieldcol">
-        ${scoutBox(p)}
-        <div class="notes" style="margin-bottom:12px"><label class="lbl" for="notes" style="margin-top:0">Notes</label><textarea id="notes" placeholder="Tendencies, approach, what he chases">${esc(p.notes)}</textarea></div>
         <div class="panel fieldwrap">
           ${fieldSVG(p)}
           <div class="marktype" role="group" aria-label="Type of hit">
@@ -372,11 +384,6 @@ function renderChart(){
           <table class="tally"><thead><tr><th></th>${td.cols.map(c=>`<th>${c}</th>`).join('')}<th>Total</th></tr></thead><tbody>${tRows}</tbody></table>
           ${tallyNote}
         </div>
-      </section>
-      <section>
-        <div class="abhead"><h3>At-bats</h3><span style="display:flex;gap:6px"><button class="ghost" id="pdf">Team PDF</button><button class="primary" id="newAB">New at-bat</button></span></div>
-        <datalist id="results">${RESULTS.map(r=>`<option value="${r}">`).join('')}</datalist>
-        <div id="abs">${abs}</div>
       </section>
     </div>`;
 }
