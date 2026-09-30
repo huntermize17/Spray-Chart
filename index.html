@@ -490,7 +490,7 @@ function scoutBox(p){
       ${RUNNER.map(([v,l,c])=>ck('runner',v,p.runner===v,l,'',c)).join('')}</div>
     <div class="scrow tally1 sc-fp"><span class="sclab">1st pitch</span>
       <span class="tl">Swing <b>${fp.sw}</b></span><span class="tl">Take <b>${fp.tk}</b></span>
-      <span class="tl muted">${fp.sw+fp.tk ? `${Math.round(100*fp.sw/(fp.sw+fp.tk))}% swing` : 'No pitches yet'}</span></div>
+      <span class="tl muted">${fp.sw+fp.tk ? `${Math.round(100*fp.sw/(fp.sw+fp.tk))}% swing` : 'No 1st-pitch strikes yet'}</span></div>
     <div class="scrow bunts sc-bunt">${cnt('sacN','Sac')}${cnt('dragN','Drag')}</div>
     ${countRow(p,'steals','Steals','Steal','sc-st')}
     ${countRow(p,'hitruns','H&amp;R','Hit and run','sc-hr')}
@@ -524,16 +524,13 @@ document.addEventListener('click', e=>{
   if(b && countPending){ const p = player(); (p[countPending] = p[countPending] || []).push(b.dataset.count); closeCount(); save(); const y=scrollY; render(); scrollTo(0,y); return; }
   if(e.target.id==='closeC' || e.target.id==='csheet') closeCount();
 });
-// first pitch of each at-bat: taken (ball or called strike) or swung at.
-// An at-bat with no pitches entered but a spray mark means he put the first pitch in play.
+// first pitch of each at-bat, counted only when it was a strike:
+// a called strike counts as a take, a swinging strike (circled) counts as a swing
 function firstPitch(p){
   let sw = 0, tk = 0;
   p.abs.forEach(a=>{
-    let f = null;
-    a.b.forEach(x=>{ if(x && x.q===1) f = {s:false}; });
-    a.s.forEach(x=>{ if(x && x.q===1) f = {s:true, sw:!!x.sw}; });
-    if(f){ if(f.s && f.sw) sw++; else tk++; }
-    else if(a.mark && ![...a.b, ...a.s].some(Boolean)) sw++;
+    const f = a.s.find(x=>x && x.q===1);
+    if(f){ if(f.sw) sw++; else tk++; }
   });
   return {sw, tk};
 }
