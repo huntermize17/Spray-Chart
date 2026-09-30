@@ -69,7 +69,7 @@ header.top{display:flex;align-items:center;gap:12px;padding:12px 16px 0;max-widt
 #teamSel{border:2px solid var(--ink);border-radius:8px;padding:6px 8px;background:var(--card);font-family:var(--head);font-weight:600;font-size:17px;max-width:40vw}
 header.top h1{font-family:var(--head);font-weight:700;font-size:28px;letter-spacing:.5px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tabs{display:flex;border:2px solid var(--ink);border-radius:8px;overflow:hidden}
-.tabs button{border:0;background:transparent;padding:6px 14px;font-family:var(--head);font-weight:600;font-size:18px}
+.tabs button{border:0;background:transparent;padding:6px 12px;font-family:var(--head);font-weight:600;font-size:18px}
 .tabs button[aria-selected="true"]{background:var(--ink);color:var(--paper)}
 
 main{max-width:1100px;margin:0 auto;padding:12px 16px 40px}
@@ -176,6 +176,18 @@ label.lbl{display:block;font-family:var(--head);font-weight:600;font-size:17px;m
 .ck input.rc:checked{background:var(--rc) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5l3 3 7-7' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px no-repeat}
 .rdot{width:12px;height:12px;border-radius:50%;display:inline-block;border:1.5px solid var(--ink);flex:none}
 [data-theme="sun"] .ck{font-weight:700}
+.bkh{font-family:var(--head);font-size:24px;margin:0 0 6px}
+.bkstats{display:flex;gap:10px;margin:8px 0 12px}
+.bkstats div{flex:1;border:1.5px solid var(--line);border-radius:8px;padding:8px;text-align:center}
+.bkstats b{display:block;font-family:var(--head);font-size:30px;line-height:1}
+.bkstats span{font-size:13px;color:var(--muted)}
+.bkstatus{margin:0;padding:10px 12px;border-radius:8px;border-left:5px solid}
+.bkstatus.ok{border-color:#2F8F5B;background:color-mix(in srgb,#2F8F5B 12%,transparent)}
+.bkstatus.warn{border-color:#C98300;background:color-mix(in srgb,#F2C200 22%,transparent)}
+.bkbanner{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;margin:4px 0 10px;border-radius:8px;border:2px solid #C98300;background:color-mix(in srgb,#F2C200 22%,var(--card));font-weight:600}
+.bkbtns{display:flex;gap:6px}
+.bkbtns .primary,.bkbtns .ghost{padding:6px 12px;font-size:16px}
+[data-theme="sun"] .bkstats div{border-width:2px}
 .chk{display:flex;align-items:center;gap:10px;margin-top:12px;font-weight:500}
 .chk input{width:22px;height:22px;accent-color:var(--ink)}
 html.nozoom, html.nozoom *{touch-action:manipulation}
@@ -220,6 +232,7 @@ html.nozoom #field{touch-action:manipulation}
   <div class="tabs" role="tablist">
     <button role="tab" id="tabChart" aria-selected="true">Chart</button>
     <button role="tab" id="tabLineup" aria-selected="false">Lineup</button>
+    <button role="tab" id="tabBackup" aria-selected="false">Backup</button>
   </div>
 </header>
 <main id="app"></main>
@@ -372,7 +385,7 @@ function renderChart(){
   const abs = p.abs.length ? p.abs.map((a,i)=>abCard(a,i)).reverse().join('')
     : `<div class="empty">No at-bats yet. Tap <b>New at-bat</b>, then tap the field where the ball went.</div>`;
 
-  $('#app').innerHTML = `
+  $('#app').innerHTML = `${backupBanner()}
     <nav class="order" aria-label="Batting order">${order}</nav>
     <div class="batter">
       <button class="navbtn" id="prev" aria-label="Previous batter">Prev</button>
@@ -460,13 +473,9 @@ function renderLineup(){
       <label class="chk"><input type="checkbox" id="noZoom" ${S.noZoom!==false?'checked':''}> Turn off double-tap zoom</label>
       <label class="lbl">Pitch key</label>
       <div class="set">${S.pitches.map((n,i)=>`<span class="dot" style="background:${PCOL[i]}">${i+1}</span><input data-pitch="${i}" value="${esc(n)}" aria-label="Pitch ${i+1} name">`).join('')}</div>
-      <label class="lbl">Backup</label>
-      <p class="hint" style="margin-top:0">Charts save on this device. Export backup saves every team in one file. Importing adds those teams to this device.</p>
+      <label class="lbl">Team tools</label>
       <div class="btnrow">
         <button class="ghost" id="pdf">Download team PDF</button>
-        <button class="ghost" id="exp">Export backup</button>
-        <button class="ghost" id="imp">Import backup</button>
-        <input type="file" id="impFile" accept=".json,application/json" hidden>
         <button class="ghost" id="print">Print</button>
         <button class="ghost danger" id="clearABs">Clear all at-bats</button>
         <button class="ghost danger" id="reset">Start over</button>
@@ -481,6 +490,89 @@ function applyZoom(){
   document.documentElement.classList.toggle('nozoom', off);
   document.querySelector('meta[name=viewport]').setAttribute('content', off ? VP_NOZOOM : VP_ZOOM);
 }
+/* ---------- backup ---------- */
+let restoreMode = 'add', bannerHidden = false;
+function countData(teams){
+  let hitters=0, abs=0;
+  teams.forEach(t=>t.players.forEach(p=>{ if(p.name.trim()||p.abs.length) hitters++; abs+=p.abs.length; }));
+  return {teams:teams.length, hitters, abs};
+}
+// fingerprint of the charting data only (not which tab or hitter is open)
+function dataSig(){
+  const str = JSON.stringify([S.pitches, S.teams.map(t=>[t.name,t.players])]);
+  let h = 5381; for(let i=0;i<str.length;i++) h = (h*33 ^ str.charCodeAt(i)) >>> 0;
+  return h.toString(36) + str.length;
+}
+const hasUnbacked = () => S.backupSig !== dataSig();
+function markBackedUp(){ S.lastBackup = Date.now(); S.backupSig = dataSig(); save(); }
+function backupFile(){
+  const d = new Date(), stamp = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}`;
+  const data = {app:'spray-chart', version:2, exportedAt:d.toISOString(),
+    pitches:S.pitches, teams:S.teams, teamId:S.teamId, markType:S.markType, theme:S.theme, noZoom:S.noZoom};
+  return new File([JSON.stringify(data)], `spray-chart-backup_${stamp}.json`, {type:'application/json'});
+}
+function canShareFiles(){
+  try{ return !!(navigator.canShare && navigator.canShare({files:[new File(['x'],'x.json',{type:'application/json'})]})); }catch(e){ return false; }
+}
+function downloadBackup(){
+  const f = backupFile(), a = document.createElement('a');
+  a.href = URL.createObjectURL(f); a.download = f.name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),60000);
+  markBackedUp(); render();
+}
+async function shareBackup(){
+  const f = backupFile();
+  try{ await navigator.share({files:[f], title:'Spray chart backup'}); markBackedUp(); render(); }
+  catch(e){ if(e && e.name!=='AbortError') downloadBackup(); }
+}
+function lastBackupText(){
+  if(!S.lastBackup) return 'Never';
+  const d = new Date(S.lastBackup), days = Math.floor((Date.now()-S.lastBackup)/864e5);
+  return d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) + (days>=1?` (${days} day${days===1?'':'s'} ago)`:'');
+}
+function backupBanner(){
+  if(bannerHidden || !hasUnbacked()) return '';
+  if(countData(S.teams).abs === 0) return '';
+  if(S.lastBackup && Date.now()-S.lastBackup < 2*864e5) return '';
+  return `<div class="bkbanner" role="status"><span>${S.lastBackup?`Last backup: ${lastBackupText()}.`:'Your charts have never been backed up.'}</span>
+    <span class="bkbtns"><button class="primary" id="bkNow">Back up now</button><button class="ghost" id="bkLater">Later</button></span></div>`;
+}
+function renderBackup(){
+  const n = countData(S.teams), share = canShareFiles(), dirty = hasUnbacked();
+  $('#app').innerHTML = `
+    <div class="panel">
+      <h2 class="bkh">Back up all data</h2>
+      <p style="margin:0 0 10px">One file with every team, lineup, at-bat, spray mark, note, and your pitch key.</p>
+      <div class="bkstats">
+        <div><b>${n.teams}</b><span>team${n.teams===1?'':'s'}</span></div>
+        <div><b>${n.hitters}</b><span>hitter${n.hitters===1?'':'s'}</span></div>
+        <div><b>${n.abs}</b><span>at-bat${n.abs===1?'':'s'}</span></div>
+      </div>
+      <p class="bkstatus ${dirty&&n.abs?'warn':'ok'}">Last backup: <b>${lastBackupText()}</b><br>${dirty? (S.lastBackup?'You have changes since then.':'Nothing is backed up yet.') : 'Everything is backed up.'}</p>
+      <div class="btnrow">
+        ${share?`<button class="primary" id="bkShare">Save or send backup</button>`:''}
+        <button class="${share?'ghost':'primary'}" id="bkDownload">Download backup file</button>
+      </div>
+      <p class="hint">${share
+        ? 'On iPhone or iPad, <b>Save or send backup</b> opens the share menu. Pick <b>Save to Files</b> and choose iCloud Drive to keep it safe off this device, or AirDrop, text, or email it.'
+        : 'The file goes to your Downloads folder. Move it to cloud storage or email it to yourself so it is safe if something happens to this device.'}</p>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <h2 class="bkh">Restore from a backup</h2>
+      <div class="btnrow" style="margin-top:0">
+        <button class="ghost" data-restore="add">Add teams from a backup</button>
+        <button class="ghost danger" data-restore="replace">Replace everything with a backup</button>
+      </div>
+      <p class="hint"><b>Add teams</b> keeps what is on this device and brings in the backup's teams, which is good for combining two phones. <b>Replace everything</b> wipes this device and puts the backup back exactly as it was, including the pitch key.</p>
+      <input type="file" id="impFile" accept=".json,application/json" hidden>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <h2 class="bkh">Keep data from getting cleared</h2>
+      <p class="hint" style="margin-top:0">Charts live in this browser on this device. On iPhone and iPad, Safari can clear website data if the site is not opened for a few weeks. Add the app to your Home Screen (Share, then <b>Add to Home Screen</b>) and open it from there to keep your data. Clearing Safari history or website data also erases it, so back up often.</p>
+    </div>`;
+}
+if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
+
 function applyTheme(){
   applyZoom();
   const th = S.theme || 'auto';
@@ -495,7 +587,8 @@ function render(){
     + `<option value="__new">+ New team</option>`;
   $('#tabChart').setAttribute('aria-selected', S.tab==='chart');
   $('#tabLineup').setAttribute('aria-selected', S.tab==='lineup');
-  S.tab==='chart' ? renderChart() : renderLineup();
+  $('#tabBackup').setAttribute('aria-selected', S.tab==='backup');
+  S.tab==='chart' ? renderChart() : S.tab==='backup' ? renderBackup() : renderLineup();
 }
 
 /* ---------- pitch picker ---------- */
@@ -569,6 +662,7 @@ $('#app').addEventListener('change', e=>{
 });
 $('#tabChart').onclick = ()=>{ S.tab='chart'; save(); render(); };
 $('#tabLineup').onclick = ()=>{ S.tab='lineup'; save(); render(); };
+$('#tabBackup').onclick = ()=>{ S.tab='backup'; save(); render(); };
 
 $('#app').addEventListener('click', e=>{
   const t = e.target;
@@ -614,12 +708,11 @@ $('#app').addEventListener('click', e=>{
   if(el = q('[data-rm]')){ const i=T().players.findIndex(p=>p.id===el.dataset.rm), p=T().players[i];
     if(confirm(`Remove ${pName(p,i)}${p.abs.length?` and ${p.abs.length} at-bat(s)`:''}?`)){ T().players.splice(i,1); save(); render(); } return; }
   if(el = q('#pdf')){ exportPDF(el); return; }
-  if(q('#exp')){
-    const blob = new Blob([JSON.stringify(S,null,1)],{type:'application/json'});
-    const link = document.createElement('a'); link.href = URL.createObjectURL(blob);
-    link.download = `spray-charts-${new Date().toISOString().slice(0,10)}.json`; link.click(); return;
-  }
-  if(q('#imp')){ $('#impFile').click(); return; }
+  if(q('#bkDownload')){ downloadBackup(); return; }
+  if(q('#bkShare')){ shareBackup(); return; }
+  if(q('#bkNow')){ canShareFiles() ? shareBackup() : downloadBackup(); return; }
+  if(q('#bkLater')){ bannerHidden = true; const b=$('.bkbanner'); if(b) b.remove(); return; }
+  if(el = q('[data-restore]')){ restoreMode = el.dataset.restore; $('#impFile').value=''; $('#impFile').click(); return; }
   if(q('#print')){ S.tab='chart'; render(); setTimeout(()=>window.print(),100); return; }
   if(q('#clearABs')){ if(confirm(`Clear every at-bat for ${tName(T(),S.teams.indexOf(T()))} but keep the lineup?`)){ T().players.forEach(p=>p.abs=[]); T().curAB=null; save(); render(); } return; }
   if(q('#reset')){ if(confirm('Erase every team, lineup, and at-bat?')){ S = defaults(); S.tab='lineup'; save(); render(); } return; }
@@ -641,16 +734,29 @@ $('#app').addEventListener('change', e=>{
   if(e.target.id!=='impFile') return;
   const f = e.target.files[0]; if(!f) return;
   const r = new FileReader();
-  r.onload = ()=>{ try{
-      const d=JSON.parse(r.result); if(!Array.isArray(d.teams)&&!Array.isArray(d.players)) throw 0;
-      const inc = upgrade(d).teams, ids = new Set(S.teams.map(t=>t.id));
-      const fresh = inc.filter(t=>!ids.has(t.id)), dup = inc.filter(t=>ids.has(t.id));
-      if(dup.length && confirm(`${dup.length} team(s) in the file are already here. Replace them with the file's version?`))
+  r.onload = ()=>{
+    let d;
+    try{ d = JSON.parse(r.result); if(!Array.isArray(d.teams)&&!Array.isArray(d.players)) throw 0; }
+    catch(err){ alert("That file isn't a spray chart backup. Choose a .json file made with Save backup."); return; }
+    const inc = upgrade(d);
+    const n = countData(inc.teams);
+    const when = d.exportedAt ? ` from ${new Date(d.exportedAt).toLocaleString()}` : '';
+    if(restoreMode==='replace'){
+      if(!confirm(`Replace EVERYTHING on this device with the backup${when}?\n\nBackup has ${n.teams} team(s), ${n.hitters} hitter(s), ${n.abs} at-bat(s).\nWhat's on this device now will be erased.`)) return;
+      const keep = {theme:S.theme, noZoom:S.noZoom};
+      S = {...defaults(), ...inc, ...(d.theme!==undefined?{}:keep), tab:'chart'};
+      if(!S.teams.find(t=>t.id===S.teamId)) S.teamId = S.teams[0].id;
+      padBoxes(); markBackedUp(); save(); render();
+      alert(`Restored ${n.teams} team(s) and ${n.abs} at-bat(s).`);
+    } else {
+      const ids = new Set(S.teams.map(t=>t.id));
+      const fresh = inc.teams.filter(t=>!ids.has(t.id)), dup = inc.teams.filter(t=>ids.has(t.id));
+      if(dup.length && confirm(`${dup.length} team(s) in the backup are already on this device. Replace those with the backup's version?\n\nOK = use the backup's version\nCancel = keep this device's version`))
         dup.forEach(t=>{ S.teams[S.teams.findIndex(x=>x.id===t.id)] = t; });
-      S.teams.push(...fresh); if(inc[0]) S.teamId = inc[0].id; padBoxes(); save(); render();
-      alert(`Imported ${inc.length} team(s).`);
+      S.teams.push(...fresh); padBoxes(); save(); render();
+      alert(`Added ${fresh.length} new team(s)${dup.length?` and checked ${dup.length} matching team(s)`:''}.`);
     }
-    catch(err){ alert('That file isn\'t a spray chart backup. Choose a .json file made with Export backup.'); } };
+  };
   r.readAsText(f);
 });
 
