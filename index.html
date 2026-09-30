@@ -112,7 +112,7 @@ main{max-width:1100px;margin:0 auto;padding:12px 16px 40px}
 .tally td{font-family:var(--head);font-weight:600;font-size:17px;line-height:1.1}
 .tally td small{display:block;font-family:var(--body);font-weight:500;font-size:11px;color:var(--muted);min-height:12px}
 .tally td.top{background:var(--active);border-radius:4px}
-.tally td.tot{color:var(--muted)}
+.tally td.tot{color:var(--ink);background:var(--paper);border-left:1px solid var(--line)}
 .tally tr.sum th,.tally tr.sum td{border-top:2px solid var(--ink);font-weight:700}
 .fieldwrap .tally .ti svg{width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:6px}
 .tendh{font-family:var(--head);font-size:20px;margin:14px 0 2px}
@@ -362,8 +362,8 @@ function renderChart(){
   const cell = (v,row) => { const tot=row[0]+row[1]+row[2]; const top = tot && v===Math.max(...row) && v>0;
     return `<td class="${top?'top':''}">${v}<small>${pct(v,tot)}</small></td>`; };
   const tRows = [['GB','Ground balls'],['FB','Fly balls'],['LD','Line drives']].map(([k,l])=>{
-    const r = td.rows[k]; return `<tr><th scope="row"><span class="ti">${typeIcon(k)}</span>${l}</th>${r.map(v=>cell(v,r)).join('')}<td class="tot">${r[0]+r[1]+r[2]}</td></tr>`;
-  }).join('') + `<tr class="sum"><th scope="row">All</th>${td.all.map(v=>cell(v,td.all)).join('')}<td class="tot">${td.n}</td></tr>`;
+    const r = td.rows[k]; return `<tr><th scope="row"><span class="ti">${typeIcon(k)}</span>${l}</th>${r.map(v=>cell(v,r)).join('')}<td class="tot">${r[0]+r[1]+r[2]}<small>${pct(r[0]+r[1]+r[2],td.n)}</small></td></tr>`;
+  }).join('') + `<tr class="sum"><th scope="row">All</th>${td.all.map(v=>cell(v,td.all)).join('')}<td class="tot">${td.n}<small>${td.n?'100%':''}</small></td></tr>`;
   let headline = 'No balls in play marked yet.';
   if(td.n){ const k = td.all.indexOf(Math.max(...td.all));
     headline = `${td.byHand ? ['Pulls','Goes up the middle on','Goes oppo on'][k] : ['Goes to left field on','Goes to center on','Goes to right field on'][k]} ${pct(td.all[k],td.n)} of ${td.n} ball${td.n===1?'':'s'} in play.`; }
@@ -768,7 +768,7 @@ async function exportPDF(btn){
       // spray tendencies
       const td = tendencies(p);
       text('Spray tendencies',tx,ty,12,bold); ty+=16;
-      const sx=[tx, tx+tw-150, tx+tw-108, tx+tw-66, tx+tw-24];
+      const sx=[tx, tx+tw-160, tx+tw-117, tx+tw-74, tx+tw-30];
       td.cols.concat('Total').forEach((h,k)=>ctext(h,sx[k+1]+10,ty,8,bold,C.muted)); ty+=11;
       [['GB','Ground'],['FB','Fly'],['LD','Line'],['All','All']].forEach(([k,l])=>{
         const r = k==='All' ? td.all : td.rows[k], tot=r[0]+r[1]+r[2], mx=Math.max(...r);
@@ -776,7 +776,7 @@ async function exportPDF(btn){
         if(k!=='All') mark(k,tx+5,ty+5,'',false,4);
         text(l,tx+(k==='All'?0:14),ty+1,9,k==='All'?bold:reg);
         r.forEach((v,j)=>ctext(tot?`${v}  ${pct(v,tot)}`:'0',sx[j+1]+10,ty+1,9,v===mx&&v>0?bold:reg));
-        ctext(tot,sx[4]+10,ty+1,9,reg,C.muted);
+        ctext(td.n?`${tot}  ${pct(tot,td.n)}`:'0',sx[4]+8,ty+1,9,reg,C.muted);
         ty+=14;
       });
       if(!td.byHand){ text(p.bats==='S'?'Switch hitter: left / center / right field':'Bats not set: left / center / right field',tx,ty+1,8,reg,C.muted); ty+=11; }
