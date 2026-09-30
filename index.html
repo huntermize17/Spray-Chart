@@ -235,6 +235,8 @@ label.lbl{display:block;font-family:var(--head);font-weight:600;font-size:17px;m
 .imptbl{border-collapse:collapse;font-size:14px;margin-top:4px;width:100%}
 .imptbl th,.imptbl td{border-top:1px solid var(--line);padding:4px 6px;text-align:left;white-space:nowrap}
 .imptbl .swc{width:1.4em;height:1.4em}
+.errdet{margin-top:6px;font-size:13px}.errdet summary{cursor:pointer;color:var(--muted)}
+.errdet code{display:block;white-space:pre-wrap;word-break:break-word;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:8px;margin-top:4px;user-select:all}
 .teamlist{border-top:1px solid var(--line)}
 .teamrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 6px;border-bottom:1px solid var(--line)}
 .teamrow.on{background:var(--active);border-radius:6px}
@@ -811,7 +813,8 @@ if(navigator.storage && navigator.storage.persist) navigator.storage.persist().c
 
 /* ---------- cloud sync (Firebase: Google sign-in + Firestore) ---------- */
 const FB_VER = '12.18.0';
-const AI_MODEL = 'gemini-3.8-flash';
+// tried in order; if a model name isn't available to this project, the next one is used
+const AI_MODELS = ['gemini-3.8-flash','gemini-3.6-flash','gemini-3-flash','gemini-2.5-flash'];
 const DEVICE = (()=>{ try{ let d=localStorage.getItem('sprayChart.device'); if(!d){ d=uid()+uid(); localStorage.setItem('sprayChart.device',d);} return d; }catch(e){ return uid(); } })();
 const cloud = {ready:false, loading:!!FIREBASE_CONFIG || CAN_FETCH_CONFIG, user:null, status:'off', err:'', firstSnap:false,
   settingsLoaded:false, settingsAt:0, remoteAt:{}, remoteData:{}, lastSync:0, timer:null, unsub:[], hist:null};
@@ -1331,7 +1334,7 @@ function renderImport(){
   const photos = IMP.photos.map((ph,i)=>{
     const r = ph.result;
     let body = '';
-    if(ph.status==='error') body = `<p class="bkstatus warn">${esc(ph.err)}</p>`;
+    if(ph.status==='error') body = `<p class="bkstatus warn">${esc(ph.err.msg||ph.err)}</p>${ph.err.detail?`<details class="errdet"><summary>Error details (send these to get help)</summary><code>${esc(ph.err.detail)}</code></details>`:''}`;
     if(r) body = r.hitters.length ? r.hitters.map((h,j)=>hitterReview(h,i,j,team)).join('') : `<p class="hint">No hitters or at-bats were found in this photo.</p>`;
     return `<div class="imgcard">
       <div class="imghead"><img src="${ph.url}" alt="Photo ${i+1}"><div><b>Photo ${i+1}</b><br><small class="st-${ph.status}">${impStatus(ph)}</small></div>
@@ -1447,35 +1450,59 @@ function parseAI(text, team){
   }).filter(h=>h.name || h.number || h.atBats.length);
   return {hitters};
 }
-async function aiModel(){
-  if(cloud.model) return cloud.model;
+async function aiSDK(){
+  if(cloud.aiSDK) return cloud.aiSDK;
   if(!cloud.ready){ for(let k=0;k<40 && !cloud.ready;k++) await new Promise(r=>setTimeout(r,250)); }
   if(!cloud.ready) throw new Error('Could not connect to Firebase. Check your internet connection.');
   const AI = await import(`https://www.gstatic.com/firebasejs/${FB_VER}/firebase-ai.js`);
-  const ai = AI.getAI(cloud.app, {backend: new AI.GoogleAIBackend()});
-  cloud.model = AI.getGenerativeModel(ai, {model: AI_MODEL, generationConfig:{responseMimeType:'application/json', temperature:0.1}});
-  return cloud.model;
+  cloud.aiSDK = {AI, ai: AI.getAI(cloud.app, {backend: new AI.GoogleAIBackend()})};
+  return cloud.aiSDK;
+}
+const errText = e => String((e && (e.message || e.code)) || e || '');
+const isModelMissing = e => /not found|404|is not supported|unknown model|does not exist|NOT_FOUND/i.test(errText(e)) && !/SERVICE_DISABLED|has not been used/i.test(errText(e));
+async function aiGenerate(parts){
+  const {AI, ai} = await aiSDK();
+  let start = 0; try{ start = Math.max(0, AI_MODELS.indexOf(localStorage.getItem('sprayChart.aiModel'))); }catch(e){}
+  let last;
+  for(let k=start; k<AI_MODELS.length; k++){
+    const model = AI.getGenerativeModel(ai, {model: AI_MODELS[k], generationConfig:{responseMimeType:'application/json', temperature:0.1}});
+    try{
+      const res = await model.generateContent(parts);
+      try{ localStorage.setItem('sprayChart.aiModel', AI_MODELS[k]); }catch(e){}
+      return res;
+    }catch(e){ last = e; console.error(AI_MODELS[k], e); if(!isModelMissing(e)) throw e; }
+  }
+  throw last;
 }
 function aiErr(e){
-  const m = String((e && (e.message||e.code)) || e);
-  if(/api-not-enabled|not been used|is disabled|SERVICE_DISABLED|firebasevertexai|generativelanguage/i.test(m))
-    return 'Photo reading is not turned on yet. In the Firebase console, open AI Logic, click Get started, and choose the Gemini Developer API.';
-  if(/quota|429|RESOURCE_EXHAUSTED/i.test(m)) return 'Too many photos at once for the free tier. Wait a minute, then tap Try again.';
-  if(/network|fetch|Failed to fetch/i.test(m)) return 'No internet connection. Try again when you have signal.';
-  if(/JSON/i.test(m)) return 'The photo could not be read clearly. Try a sharper, straight-on photo.';
-  return 'Could not read this photo (' + m.slice(0,140) + ').';
+  const m = errText(e);
+  let msg;
+  if(/API_KEY_SERVICE_BLOCKED|are blocked|blocked for this API key|API_KEY_API_BLOCKED/i.test(m))
+    msg = 'Your Firebase API key is not allowed to use Firebase AI Logic. In the Google Cloud console (console.cloud.google.com), pick this project, go to APIs & Services, then Credentials. Open "Browser key (auto created by Firebase)". Under API restrictions, add "Firebase AI Logic API" (and "Generative Language API" if listed), and save. Changes can take 5 minutes.';
+  else if(/REFERRER|referer/i.test(m))
+    msg = `Your Firebase API key only allows certain websites. In the Google Cloud console, APIs & Services, Credentials, open the Browser key and add ${location.hostname}/* under Website restrictions.`;
+  else if(/API key not valid|API_KEY_INVALID/i.test(m))
+    msg = 'Firebase says the API key is not valid. Copy the code from Firebase Project settings into firebase-config.txt again.';
+  else if(/api-not-enabled|SERVICE_DISABLED|has not been used|it is disabled/i.test(m))
+    msg = 'Firebase says the AI service is still off for this project. If you just turned on AI Logic, wait about 5 minutes and try again. If it still fails, open AI Logic in the Firebase console and make sure it shows the Gemini Developer API as set up (not only the Get started screen).';
+  else if(/quota|429|RESOURCE_EXHAUSTED/i.test(m)) msg = 'Too many photos at once for the free tier. Wait a minute, then tap Try again.';
+  else if(/Failed to fetch|NetworkError|network/i.test(m)) msg = 'No internet connection. Try again when you have signal.';
+  else if(/JSON|chart data/i.test(m)) msg = 'The photo could not be read clearly. Try a sharper, straight-on photo.';
+  else if(isModelMissing(e)) msg = 'None of the Gemini models the app tries are available to this project.';
+  else msg = 'Could not read this photo.';
+  return {msg, detail: m.slice(0,600)};
 }
 async function readPhotos(){
   if(IMP.busy) return;
   IMP.busy = true; render();
   try{
-    const model = await aiModel();
+    await aiSDK();
     for(const ph of IMP.photos){
       if(ph.status!=='wait' && ph.status!=='error') continue;
       ph.status = 'reading'; ph.err = ''; render();
       try{
         const b64 = ph.b64 || (ph.b64 = await photoToJpeg(ph.file));
-        const res = await model.generateContent([aiPrompt(), {inlineData:{data:b64, mimeType:'image/jpeg'}}]);
+        const res = await aiGenerate([aiPrompt(), {inlineData:{data:b64, mimeType:'image/jpeg'}}]);
         ph.result = parseAI(res.response.text(), impTeam());
         ph.status = 'done';
       }catch(e){ console.error(e); ph.status = 'error'; ph.err = aiErr(e); }
