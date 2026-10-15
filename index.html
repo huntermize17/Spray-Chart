@@ -1377,19 +1377,19 @@ function renderImport(){
     const n = list.indexOf(ph)+1;
     const head = ph.kind==='paste'
       ? `<span class="claudeicon" aria-hidden="true">✳</span><div><b>Claude results ${n}</b><br><small class="st-done">${r?`${r.hitters.length} hitter${r.hitters.length===1?'':'s'} found`:''}</small></div>`
-      : `<img src="${ph.url}" alt="Photo ${n}"><div><b>Photo ${n}</b><br><small class="st-${ph.status}">${impStatus(ph)}</small></div>`;
+      : `${ph.url?`<img src="${ph.url}" alt="">`:`<span class="claudeicon" style="background:var(--line);color:var(--ink);font-size:14px;font-weight:700">PDF</span>`}<div><b>${ph.label ? esc(ph.label) : 'Photo '+n}</b><br><small class="st-${ph.status}">${impStatus(ph)}</small></div>`;
     return `<div class="imgcard"><div class="imghead">${head}
-        ${IMP.busy?'':`<span class="imgacts">${ph.status==='error'?`<button class="ghost" data-impretry="${i}">Try again</button>`:''}<button class="iconbtn" data-imprm="${i}">Remove</button></span>`}</div>
+        ${IMP.busy?'':`<span class="imgacts">${ph.status==='error' && (ph.file||ph.b64)?`<button class="ghost" data-impretry="${i}">Try again</button>`:''}<button class="iconbtn" data-imprm="${i}">Remove</button></span>`}</div>
       ${body}</div>`;
   }).join('');
-  const waiting = list.filter(p=>p.status==='wait'||p.status==='error').length;
+  const waiting = list.filter(p=>(p.status==='wait'||p.status==='error') && (p.file||p.b64)).length;
   const ready = list.some(p=>p.result && p.result.hitters.some(h=>h.include));
   const teamLabel = esc(IMP.team==='__new' ? (IMP.newName||'the new team') : tName(team, S.teams.indexOf(team)));
 
   const claudeSteps = `
       <ol class="csteps">
         <li><button class="primary" id="impCopy">Copy instructions</button> <span class="hint" id="copyNote" style="margin:0"></span></li>
-        <li><a class="ghost linkbtn" href="https://claude.ai/new" target="_blank" rel="noopener">Open Claude</a> Start a new chat, paste the instructions, attach your spray chart photos, and send. You can attach several sheets at once.</li>
+        <li><a class="ghost linkbtn" href="https://claude.ai/new" target="_blank" rel="noopener">Open Claude</a> Start a new chat, paste the instructions, attach your spray chart photos or PDF files, and send. You can attach several sheets at once.</li>
         <li>When Claude answers, tap the copy button on its code block, then paste it here:
           <textarea id="impPaste" placeholder='Paste what Claude sent back (it starts with {"hitters":...)'>${esc(IMP.pasteText||'')}</textarea>
           <div class="btnrow"><button class="primary" id="impUsePaste">Read pasted results</button></div>
@@ -1399,8 +1399,9 @@ function renderImport(){
       <textarea id="promptFallback" readonly hidden>${esc(claudePrompt())}</textarea>`;
   const googleSteps = !cfgOk
     ? (cloud.loading ? `<p class="hint" style="margin:0">Checking Firebase settings...</p>` : `<p class="bkstatus warn">${FIREBASE_PROBLEM ? esc(FIREBASE_PROBLEM) : 'Reading with Google needs your Firebase settings in a file named <b>firebase-config.txt</b> next to index.html (the Backup tab explains how).'}</p>`)
-    : `<div class="btnrow" style="margin-top:0"><label class="primary filebtn">Take or choose photos<input type="file" id="impFiles" accept="image/*" multiple hidden ${IMP.busy?'disabled':''}></label></div>
-       <p class="hint">Get the whole sheet in frame, straight on, in good light. Google's free plan only allows a limited number of reads per day.</p>`;
+    : `<div class="btnrow" style="margin-top:0"><label class="primary filebtn">Choose photos or PDFs<input type="file" id="impFiles" accept="image/*,application/pdf,.pdf" multiple hidden ${IMP.busy?'disabled':''}></label></div>
+       ${IMP.pdfNote?`<p class="hint" style="font-weight:600;color:var(--ink)">${esc(IMP.pdfNote)}</p>`:''}
+       <p class="hint">Pick photos, PDFs, or both. Each PDF page is read as its own sheet. Get the whole sheet in frame, straight on, in good light. Google's free plan only allows a limited number of reads per day.</p>`;
 
   $('#app').innerHTML = `
     <div class="batter" style="margin-top:0"><button class="navbtn" id="impBack">Back</button><div class="who"><h2>Import from photos</h2><p>Turn paper spray charts into at-bats in the app.</p></div></div>
@@ -1418,7 +1419,7 @@ function renderImport(){
     ${list.length?`
     <div class="panel" style="margin-top:16px">
       <div class="abhead"><h3>3. Check what was read</h3>
-        ${method==='google' ? (waiting && !IMP.busy ? `<button class="primary" id="impRead">Read ${waiting} photo${waiting===1?'':'s'}</button>` : IMP.busy ? `<span class="hint" style="margin:0">Reading... keep this screen open</span>` : '') : ''}</div>
+        ${method==='google' ? (waiting && !IMP.busy ? `<button class="primary" id="impRead">Read ${waiting} sheet${waiting===1?'':'s'}</button>` : IMP.busy ? `<span class="hint" style="margin:0">Reading... keep this screen open</span>` : '') : ''}</div>
       ${cards}
     </div>
     ${ready && !IMP.busy ? `<div class="panel" style="margin-top:16px">
@@ -1428,9 +1429,9 @@ function renderImport(){
   `;
 }
 function claudePrompt(){
-  return `I'm attaching photos of my handwritten baseball spray chart sheets. Please read them and send back the data exactly as described below, so I can paste it into my spray chart app.
+  return `I'm attaching photos and/or PDF scans of my handwritten baseball spray chart sheets. Treat every PDF page as its own sheet. Please read them and send back the data exactly as described below, so I can paste it into my spray chart app.
 
-If I attach more than one photo, put every hitter from every photo into the one "hitters" list. If the same hitter appears on two photos, list him once and include all of his at-bats.
+If I attach more than one photo or page, put every hitter from every photo and page into the one "hitters" list. If the same hitter appears on two photos, list him once and include all of his at-bats.
 
 Put your whole answer in a single code block containing only the JSON, with no other text inside the code block.
 
@@ -1702,6 +1703,53 @@ function aiErr(e){
   else msg = 'Could not read this photo.';
   return {msg, detail: (e && e.detailAll) || m.slice(0,600)};
 }
+/* PDFs: each page is drawn to an image and handled exactly like a photo */
+const PDFJS_VER = '4.4.168';
+async function pdfLib(){
+  if(window.__pdfjs) return window.__pdfjs;
+  const base = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VER}/`;
+  const lib = await import(base + 'pdf.min.mjs');
+  lib.GlobalWorkerOptions.workerSrc = base + 'pdf.worker.min.mjs';
+  return (window.__pdfjs = lib);
+}
+const isPdf = f => f.type==='application/pdf' || /\.pdf$/i.test(f.name||'');
+async function addImportFiles(files){
+  IMP.stage = 'pick';
+  const pdfs = files.filter(isPdf);
+  files.filter(f=>!isPdf(f)).forEach(f=>IMP.photos.push({file:f, url:URL.createObjectURL(f), status:'wait'}));
+  if(!pdfs.length){ render(); return; }
+  IMP.busy = true; IMP.pdfNote = 'Opening PDF...'; render();
+  for(const f of pdfs){
+    try{
+      const lib = await pdfLib();
+      const task = lib.getDocument({data: new Uint8Array(await f.arrayBuffer())}), doc = await task.promise;
+      const name = (f.name||'PDF').replace(/\.pdf$/i,'');
+      for(let n=1; n<=doc.numPages; n++){
+        IMP.pdfNote = `Opening ${name}, page ${n} of ${doc.numPages}...`; render();
+        const page = await doc.getPage(n), v1 = page.getViewport({scale:1});
+        const scale = Math.min(4, 3072 / Math.max(v1.width, v1.height));
+        const vp = page.getViewport({scale}), c = document.createElement('canvas');
+        c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+        const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0,0,c.width,c.height);
+        await page.render({canvasContext: ctx, viewport: vp}).promise;
+        const jpg = c.toDataURL('image/jpeg', 0.85);
+        const th = document.createElement('canvas'), ts = 160/Math.max(c.width,c.height);
+        th.width = Math.round(c.width*ts); th.height = Math.round(c.height*ts);
+        th.getContext('2d').drawImage(c,0,0,th.width,th.height);
+        IMP.photos.push({url: th.toDataURL('image/jpeg',0.8), b64: jpg.split(',')[1], status:'wait',
+          label: doc.numPages>1 ? `${name}, page ${n}` : name});
+        page.cleanup();
+      }
+      try{ await task.destroy(); }catch(e){}
+    }catch(e){
+      console.error(e);
+      IMP.photos.push({url:'', status:'error', label:f.name||'PDF', err:{msg: /password/i.test(e&&e.message||'')
+        ? 'That PDF is password protected. Save a copy without a password and try again.'
+        : 'Could not open that PDF. Check your internet connection (the PDF reader loads the first time) or try exporting it again.', detail:String(e&&e.message||e)}});
+    }
+  }
+  IMP.busy = false; IMP.pdfNote = ''; render();
+}
 async function readPhotos(){
   if(IMP.busy) return;
   IMP.busy = true; render();
@@ -1709,6 +1757,7 @@ async function readPhotos(){
     await aiSDK();
     for(const ph of IMP.photos){
       if(ph.status!=='wait' && ph.status!=='error') continue;
+      if(!ph.file && !ph.b64) continue;
       ph.status = 'reading'; ph.err = ''; render();
       try{
         const b64 = ph.b64 || (ph.b64 = await photoToJpeg(ph.file));
@@ -1787,10 +1836,7 @@ function commitImport(){
 }
 $('#app').addEventListener('change', e=>{
   const t = e.target;
-  if(t.id==='impFiles'){
-    [...t.files].forEach(f=>IMP.photos.push({file:f, url:URL.createObjectURL(f), status:'wait'}));
-    IMP.stage = 'pick'; render(); return;
-  }
+  if(t.id==='impFiles'){ addImportFiles([...t.files]); t.value = ''; return; }
   if(t.id==='impTeam'){
     IMP.team = t.value;
     const team = impTeam();
