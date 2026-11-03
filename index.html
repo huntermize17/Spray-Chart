@@ -151,6 +151,7 @@ main{max-width:1100px;margin:0 auto;padding:12px 16px 40px}
   [data-theme="sun"] .box{font-size:17px}
   [data-theme="sun"] .box sup{font-size:8px}
   .swc{border-width:1.5px}
+  .flb{font-size:8px;right:1px;bottom:0}
   .row .lab{width:14px;font-size:16px}
 }
 .box{position:relative;aspect-ratio:1;min-width:0;border:1.5px solid var(--line);border-radius:4px;background:var(--paper);font-family:var(--head);font-weight:700;font-size:20px;padding:0;display:grid;place-items:center}
@@ -308,6 +309,10 @@ html.nozoom #field{touch-action:manipulation}
 .picks + .pickhead{margin-top:14px}
 .picks button.cur{outline:3px solid var(--ink);outline-offset:2px}
 .picks button b.swc{border:3px solid #fff;border-radius:50%;width:44px;height:44px;display:grid;place-items:center}
+.flb{position:absolute;right:2px;bottom:1px;font-family:var(--body);font-size:10px;font-weight:800;line-height:1;color:var(--ink)}
+.picks button b.flc{position:relative}
+.picks button b.flc::after{content:"F";position:absolute;right:-12px;bottom:-2px;font-family:var(--body);font-size:13px;font-weight:800}
+.flm{font-size:.7em;font-weight:800;vertical-align:super;margin-left:1px}
 .swc{display:inline-grid;place-items:center;border:2px solid currentColor;border-radius:50%;width:1.35em;height:1.35em;line-height:1}
 [data-theme="sun"] .swc{border-width:2.5px}
 .picks button{border:0;border-radius:8px;padding:12px 4px;color:#fff;display:flex;flex-direction:column;align-items:center;gap:2px}
@@ -685,8 +690,8 @@ function renderChart(){
 }
 function boxBtn(a,kind,i){
   const v = a[kind][i];
-  const lbl = `${kind==='b'?'Ball':'Strike'} box ${i+1}${v?`, pitch ${v.c}${v.sw?', swung at':''}`:', empty'}`;
-  return `<button class="box ${v?'f':''}" data-ab="${a.id}" data-k="${kind}" data-i="${i}" aria-label="${lbl}" ${v?`style="color:${PCOL[v.c-1]}"`:''}>${v?`${a.noSeq?'':`<sup>${v.q}</sup>`}${v.sw?`<span class="swc">${v.c}</span>`:v.c}`:''}</button>`;
+  const lbl = `${kind==='b'?'Ball':'Strike'} box ${i+1}${v?`, pitch ${v.c}${v.fl?', foul ball':v.sw?', swing and miss':''}`:', empty'}`;
+  return `<button class="box ${v?'f':''}" data-ab="${a.id}" data-k="${kind}" data-i="${i}" aria-label="${lbl}" ${v?`style="color:${PCOL[v.c-1]}"`:''}>${v?`${a.noSeq?'':`<sup>${v.q}</sup>`}${v.fl?`${v.c}<span class="flb" aria-hidden="true">F</span>`:v.sw?`<span class="swc">${v.c}</span>`:v.c}`:''}</button>`;
 }
 function abCard(a,i){
   const n = a.b.filter(Boolean).length + a.s.filter(Boolean).length;
@@ -1155,12 +1160,15 @@ function openPicker(abId,k,i){
   pending = {abId,k,i};
   $('#sheetTitle').textContent = `${k==='b'?'Ball':'Strike'}, box ${i+1}: which pitch?`;
   const a = player().abs.find(x=>x.id===abId), cur = a && a[k][i];
-  const row = sw => `<div class="picks">${S.pitches.map((n,j)=>{
-      const on = cur && cur.c===j+1 && !!cur.sw===sw;
-      return `<button data-pick="${j+1}" data-sw="${sw?1:0}" class="${on?'cur':''}" style="background:${PCOL[j]}" aria-label="${esc(n)}${k==='s'?(sw?', swung at':', taken'):''}"><b class="${sw?'swc':''}">${j+1}</b><span>${esc(n)}</span></button>`;
+  // kind of strike: 0 = take, 1 = swing and miss, 2 = foul ball
+  const kindOf = v => !v ? -1 : v.fl ? 2 : v.sw ? 1 : 0;
+  const row = kd => `<div class="picks">${S.pitches.map((n,j)=>{
+      const on = cur && cur.c===j+1 && (k==='b' || kindOf(cur)===kd);
+      const lab = k==='s' ? [', taken',', swing and miss',', foul ball'][kd] : '';
+      return `<button data-pick="${j+1}" data-sw="${kd}" class="${on?'cur':''}" style="background:${PCOL[j]}" aria-label="${esc(n)}${lab}"><b class="${kd===1?'swc':kd===2?'flc':''}">${j+1}</b><span>${esc(n)}</span></button>`;
     }).join('')}</div>`;
-  $('#picks').innerHTML = k==='b' ? row(false)
-    : `<p class="pickhead">Take</p>${row(false)}<p class="pickhead">Swung at <span>(number gets circled)</span></p>${row(true)}`;
+  $('#picks').innerHTML = k==='b' ? row(0)
+    : `<p class="pickhead">Take</p>${row(0)}<p class="pickhead">Swing and miss <span>(number gets circled)</span></p>${row(1)}<p class="pickhead">Foul ball <span>(number gets an F)</span></p>${row(2)}`;
   $('#sheet').classList.add('open'); $('#sheet').setAttribute('aria-hidden','false');
   $('#picks button').focus();
   $('#picks').scrollTop = 0;
@@ -1170,20 +1178,21 @@ function renumber(a){
   const all = [...a.b, ...a.s].filter(Boolean).sort((x,y)=>x.q-y.q);
   all.forEach((x,i)=>x.q=i+1);
 }
-function setBox(val, sw=false){
+function setBox(val, kd=0){
+  const sw = kd>0, fl = kd===2;   // a foul ball is a swing too
   const p = player(), a = p.abs.find(x=>x.id===pending.abId);
   if(!a) return closePicker();
   const cur = a[pending.k][pending.i];
   if(val===null){ a[pending.k][pending.i] = null; }
-  else if(cur){ cur.c = val; if(pending.k==='s') cur.sw = sw; }
+  else if(cur){ cur.c = val; if(pending.k==='s'){ cur.sw = sw; if(fl) cur.fl = true; else delete cur.fl; } }
   else {
     const q = [...a.b, ...a.s].filter(Boolean).length + 1;
-    a[pending.k][pending.i] = pending.k==='s' ? {c:val,q,sw} : {c:val,q};
+    a[pending.k][pending.i] = pending.k==='s' ? (fl ? {c:val,q,sw,fl} : {c:val,q,sw}) : {c:val,q};
   }
   renumber(a);
   T().curAB = a.id; closePicker(); save(); render();
 }
-$('#picks').addEventListener('click',e=>{ const b=e.target.closest('[data-pick]'); if(b) setBox(+b.dataset.pick, b.dataset.sw==='1'); });
+$('#picks').addEventListener('click',e=>{ const b=e.target.closest('[data-pick]'); if(b) setBox(+b.dataset.pick, +b.dataset.sw||0); });
 $('#clearBox').onclick = ()=>setBox(null);
 $('#closeSheet').onclick = closePicker;
 $('#sheet').addEventListener('click',e=>{ if(e.target.id==='sheet') closePicker(); });
@@ -1450,7 +1459,7 @@ function hitterReview(h,i,j,team){
     (team ? team.players.map((p,k)=>`<option value="${p.id}" ${h.target===p.id?'selected':''}>Add to ${esc(p.num?'#'+p.num+' ':'')}${esc(pName(p,k))}</option>`).join('') : '');
   const rows = h.atBats.map(a=>{
     const bl = a.b.filter(Boolean).map(x=>`<span style="color:${PCOL[x.c-1]}">${x.c}</span>`).join(' ');
-    const st = a.s.filter(Boolean).map(x=>`<span style="color:${PCOL[x.c-1]}" class="${x.sw?'swc':''}">${x.c}</span>`).join(' ');
+    const st = a.s.filter(Boolean).map(x=>`<span style="color:${PCOL[x.c-1]}" class="${x.sw&&!x.fl?'swc':''}">${x.c}${x.fl?'<span class="flm">F</span>':''}</span>`).join(' ');
     return `<tr><td>${a.n||''}</td><td>${bl||'-'}</td><td>${st||'-'}</td><td><b>${esc(a.result||'')}</b></td><td>${a.mark?{GB:'Ground',FB:'Fly',LD:'Line'}[a.mark.t]:''}</td></tr>`;
   }).join('');
   return `<div class="hrev ${h.include?'':'off'}">
@@ -1487,7 +1496,7 @@ THE SHEET
 - Header: PLAYER name, # (jersey number), POS, and "BATS: ( L R S )". All three letters are printed on every sheet. Report only the one the coach marked (circled, checked, crossed through, or written over). Look closely; do not guess.
 - A colored label or sticker at the top right is the team name, not anything about the hitter.
 - Left box: "RUN: GREEN YELLOW RED" (all three words are printed). The one the coach marked (a slash or check mark through it, a circle, or an underline) is the hitter's runner speed. Also "1st PITCH SWING / TAKE" tally marks, "BUNT: SAC / DRAG / PUSH" tally marks, "STEAL COUNTS" and "H&R COUNTS" (counts like 1-0 or 2-1 written in), and CLASS, PLAN and COMMENTS areas.
-- At-bat table on the right: rows numbered 1-24. Each row has a B line (balls) and an S line (strikes) of small boxes lined up in columns, and a result written at the far right. The coach charts pitch-by-pitch: column 1 is the 1st pitch, column 2 the 2nd, and so on. Each pitch is written as the pitch type in the B line if it was a ball or the S line if it was a strike. Pitch types are abbreviations: FB = fastball, CB or CU = curveball, SL = slider, CH = changeup, and others. A pitch with a circle drawn around it in the S line means the batter SWUNG at it; an uncircled pitch in the S line was TAKEN for a called strike.
+- At-bat table on the right: rows numbered 1-24. Each row has a B line (balls) and an S line (strikes) of small boxes lined up in columns, and a result written at the far right. The coach charts pitch-by-pitch: column 1 is the 1st pitch, column 2 the 2nd, and so on. Each pitch is written as the pitch type in the B line if it was a ball or the S line if it was a strike. Pitch types are abbreviations: FB = fastball, CB or CU = curveball, SL = slider, CH = changeup, and others. A pitch with a circle drawn around it in the S line means the batter SWUNG AND MISSED; an uncircled pitch in the S line was TAKEN for a called strike. If the coach marks a pitch as a FOUL BALL (for example a small "F" or "Fo" next to it, a slash through it, or a triangle around it), report it as a foul.
 - Field drawing at the bottom left: a square box. HOME PLATE IS THE BOTTOM-LEFT CORNER of the box. The left-field foul line runs straight UP the left edge of the box. The right-field foul line runs straight RIGHT along the bottom edge. The small square in that corner is the infield (second base is its top-right corner), the small circle is the pitcher's mound, and the large arc is the edge of the infield. Everything beyond the arc is outfield. A line heading straight up is down the left-field line, straight right is down the right-field line, and the 45-degree diagonal toward the top-right corner is dead center field. Names written near the drawing are fielders, ignore them.
 - Each ball in play is a pen line starting at home plate (bottom-left corner) and ending where the ball went. Dotted or dashed line = ground ball. Solid line that curves or arcs = fly ball. Solid straight line = line drive. An arrowhead at the end means the ball got through for a hit; a short cross bar "T" at the end means it was caught or fielded there. Lines are usually NOT numbered.
 
@@ -1504,7 +1513,7 @@ Return ONLY JSON in exactly this shape:
 
 Rules:
 - "n" = the at-bat row number. Skip empty rows.
-- "pitches": one entry per filled box. "col" = the box's column counted from the left starting at 1, the same for the B and S lines (a B box and the S box directly under it share a col). "swung" only for circled S-line pitches.
+- "pitches": one entry per filled box. "col" = the box's column counted from the left starting at 1, the same for the B and S lines (a B box and the S box directly under it share a col). "swung" only for circled S-line pitches. "foul": true for S-line pitches marked as foul balls.
 - "result": exactly as written (F-7, 1-3, K, 2B, 4-3, BB, HBP, 1B-7, 3U...).
 - "hitType": "GB", "FB" or "LD" from the line style (or from the result if there is no line), "" for strikeouts, walks and HBP.
 - "spray": the matched line's end point, or null if the at-bat has no line. "end" = "arrow", "cap" or "".
@@ -1532,7 +1541,7 @@ const FIELDER = {1:[200,247],2:[200,290],3:[246,232],4:[226,200],5:[154,232],6:[
 function toAtBat(x){
   const a = blankAB(); a.noSeq = true; let q = 1;
   if(Array.isArray(x.pitches) && x.pitches.length){
-    const ps = x.pitches.map(p=>({row:String(p.row||'').toUpperCase()==='S'?'s':'b', col:Math.round(+p.col)||0, c:+p.pitch, sw:!!p.swung}))
+    const ps = x.pitches.map(p=>({row:String(p.row||'').toUpperCase()==='S'?'s':'b', col:Math.round(+p.col)||0, c:+p.pitch, sw:!!p.swung||!!p.foul, fl:!!p.foul}))
       .filter(p=>p.c>=1 && p.c<=5 && p.col>=1);
     // pitch-by-pitch charting: every column used once, starting at column 1 with no gaps
     const cols = ps.map(p=>p.col).sort((m,n)=>m-n);
@@ -1542,7 +1551,7 @@ function toAtBat(x){
       let i = Math.min(p.col, BOXES)-1;
       while(i<BOXES && a[p.row][i]) i++;
       if(i>=BOXES) return;
-      a[p.row][i] = p.row==='s' ? {c:p.c, q:q++, sw:p.sw} : {c:p.c, q:q++};
+      a[p.row][i] = p.row==='s' ? (p.fl ? {c:p.c, q:q++, sw:true, fl:true} : {c:p.c, q:q++, sw:p.sw}) : {c:p.c, q:q++};
     });
     if(ordered) delete a.noSeq;       // order is known, so 1st pitch counts like a live at-bat
     x = {...x, balls:[], strikes:[]};
@@ -1964,7 +1973,8 @@ async function exportPDF(btn){
             const bx=x+24+b*bw, v=a[kind][b];
             rect(bx,yy,bw,bh,{borderColor:C.line,borderWidth:0.6});
             if(v){ ctext(v.c,bx+bw/2,yy+2,7,bold,C.p[v.c-1]);
-              if(v.sw) pg.drawCircle({x:bx+bw/2,y:H-yy-bh/2,size:Math.min(bw,bh)/2-0.6,borderColor:C.p[v.c-1],borderWidth:0.8}); }
+              if(v.fl) text('F',bx+bw-3.6,yy+bh-5.2,4.5,bold,C.ink);
+              else if(v.sw) pg.drawCircle({x:bx+bw/2,y:H-yy-bh/2,size:Math.min(bw,bh)/2-0.6,borderColor:C.p[v.c-1],borderWidth:0.8}); }
           }
         });
         const rx=x+24+BOXES*bw+3, rw=cw-(24+BOXES*bw+3)-6;
@@ -2014,16 +2024,16 @@ async function exportPDF(btn){
       ty+=8;
       // tally
       text('Pitches seen',tx,ty,12,bold); ty+=16;
-      const colX=[tx, tx+tw-130, tx+tw-96, tx+tw-60, tx+tw-24];
-      ['Pitch','Balls','Strikes','Swung','Total'].forEach((h,k)=> k? ctext(h,colX[k]+10,ty,8,bold,k===1?C.ball:k===2?C.strike:C.muted) : text(h,tx,ty,8,bold,C.muted));
+      const colX=[tx, tx+tw-150, tx+tw-120, tx+tw-90, tx+tw-58, tx+tw-26];
+      ['Pitch','Balls','Strikes','Swung','Foul','Total'].forEach((h,k)=> k? ctext(h,colX[k]+10,ty,8,bold,k===1?C.ball:k===2?C.strike:C.muted) : text(h,tx,ty,8,bold,C.muted));
       ty+=12;
-      const t = Array.from({length:5},()=>({b:0,s:0,w:0}));
-      p.abs.forEach(a=>{ a.b.forEach(x=>x&&t[x.c-1].b++); a.s.forEach(x=>{ if(x){ t[x.c-1].s++; if(x.sw) t[x.c-1].w++; } }); });
+      const t = Array.from({length:5},()=>({b:0,s:0,w:0,f:0}));
+      p.abs.forEach(a=>{ a.b.forEach(x=>x&&t[x.c-1].b++); a.s.forEach(x=>{ if(x){ t[x.c-1].s++; if(x.sw) t[x.c-1].w++; if(x.fl) t[x.c-1].f++; } }); });
       S.pitches.forEach((nm,k)=>{
         line(tx,ty-3,W-M,ty-3);
         rect(tx,ty,11,11,{color:C.p[k]}); ctext(k+1,tx+5.5,ty+2,8,bold,C.white);
         text(fit(nm,reg,9.5,colX[1]-tx-24),tx+16,ty+1,9.5);
-        [t[k].b,t[k].s,t[k].w,t[k].b+t[k].s].forEach((v,j)=>ctext(v,colX[j+1]+10,ty+1,9.5));
+        [t[k].b,t[k].s,t[k].w,t[k].f,t[k].b+t[k].s].forEach((v,j)=>ctext(v,colX[j+1]+10,ty+1,9.5));
         ty+=14;
       });
       line(tx,ty-3,W-M,ty-3);
