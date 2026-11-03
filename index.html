@@ -770,7 +770,7 @@ let fitTimer;
 addEventListener('resize', ()=>{ clearTimeout(fitTimer); fitTimer = setTimeout(fitField, 120); });
 function boxBtn(a,kind,i){
   const v = a[kind][i];
-  const lbl = `${kind==='b'?'Ball':'Strike'} box ${i+1}${v?`, pitch ${v.c}${v.fl?', foul ball':v.sw?', swing and miss':''}`:', empty'}`;
+  const lbl = `${kind==='b'?'Ball':'Strike'} box ${i+1}${v?`, pitch ${v.c}${v.fl?', foul ball':v.sw?', swung at':''}`:', empty'}`;
   return `<button class="box ${v?'f':''}" data-ab="${a.id}" data-k="${kind}" data-i="${i}" aria-label="${lbl}" ${v?`style="color:${PCOL[v.c-1]}"`:''}>${v?`${a.noSeq?'':`<sup>${v.q}</sup>`}${v.fl?`${v.c}<span class="flb" aria-hidden="true">F</span>`:v.sw?`<span class="swc">${v.c}</span>`:v.c}`:''}</button>`;
 }
 function abCard(a,i){
@@ -1239,15 +1239,15 @@ function openPicker(abId,k,i){
   pending = {abId,k,i};
   $('#sheetTitle').textContent = `${k==='b'?'Ball':'Strike'}, box ${i+1}: which pitch?`;
   const a = player().abs.find(x=>x.id===abId), cur = a && a[k][i];
-  // kind of strike: 0 = take, 1 = swing and miss, 2 = foul ball
+  // kind of strike: 0 = take, 1 = swung at, 2 = foul ball
   const kindOf = v => !v ? -1 : v.fl ? 2 : v.sw ? 1 : 0;
   const row = kd => `<div class="picks">${S.pitches.map((n,j)=>{
       const on = cur && cur.c===j+1 && (k==='b' || kindOf(cur)===kd);
-      const lab = k==='s' ? [', taken',', swing and miss',', foul ball'][kd] : '';
+      const lab = k==='s' ? [', taken',', swung at',', foul ball'][kd] : '';
       return `<button data-pick="${j+1}" data-sw="${kd}" class="${on?'cur':''}" style="background:${PCOL[j]}" aria-label="${esc(n)}${lab}"><b class="${kd===1?'swc':kd===2?'flc':''}">${j+1}</b><span>${esc(n)}</span></button>`;
     }).join('')}</div>`;
   $('#picks').innerHTML = k==='b' ? row(0)
-    : `<p class="pickhead">Take</p>${row(0)}<p class="pickhead">Swing and miss <span>(number gets circled)</span></p>${row(1)}<p class="pickhead">Foul ball <span>(number gets an F)</span></p>${row(2)}`;
+    : `<p class="pickhead">Take</p>${row(0)}<p class="pickhead">Swung at <span>(number gets circled)</span></p>${row(1)}<p class="pickhead">Foul ball <span>(number gets an F)</span></p>${row(2)}`;
   $('#sheet').classList.add('open'); $('#sheet').setAttribute('aria-hidden','false');
   $('#picks button').focus();
   $('#picks').scrollTop = 0;
