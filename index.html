@@ -96,14 +96,21 @@ main{max-width:1100px;margin:0 auto;padding:12px 16px 40px}
 .batter .who p{margin:2px 0 0;color:var(--muted);font-size:14px}
 .navbtn{border:1.5px solid var(--line);background:var(--card);border-radius:6px;padding:8px 12px;font-family:var(--head);font-weight:600;font-size:17px}
 
-.grid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+.chartwrap{display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:"info" "abs" "field";gap:16px}
+.chartwrap .inforow{grid-area:info;margin-bottom:0}
+.chartwrap .abcol{grid-area:abs;min-width:0}
+.chartwrap .fieldcol{grid-area:field;min-width:0}
+.orderbar{display:flex;align-items:center;gap:6px}
+.orderbar .order{flex:1;min-width:0}
+.navbtn.sm{display:none;padding:4px 10px;font-size:22px;line-height:1;align-self:stretch;margin-bottom:10px}
+.order button i{font-style:normal;font-family:var(--head);font-weight:600;font-size:15px;opacity:.75}
 .inforow{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-bottom:16px}
 .inforow .scout{margin:0}
 .inforow .notes{display:flex;flex-direction:column}
 .inforow .notes textarea{flex:1}
 @media (min-width:640px){.inforow{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}}
 @media (min-width:900px){.inforow{grid-template-columns:minmax(0,1.45fr) minmax(0,1fr)}}
-@media (min-width:900px){.grid{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);align-items:start}.fieldcol{position:sticky;top:12px;order:-1}}
+
 
 .panel{background:var(--card);border:1.5px solid var(--line);border-radius:10px;padding:12px}
 .fieldwrap svg{width:100%;height:auto;display:block;touch-action:manipulation;cursor:crosshair}
@@ -166,13 +173,22 @@ main{max-width:1100px;margin:0 auto;padding:12px 16px 40px}
 label.lbl{display:block;font-family:var(--head);font-weight:600;font-size:17px;margin:14px 0 4px}
 
 /* lineup editor */
-.lu{display:grid;grid-template-columns:34px minmax(0,1fr) 64px 64px 64px 64px 108px;gap:6px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
+.lu{display:grid;grid-template-columns:52px minmax(0,1fr) 64px 64px 64px 64px 44px;gap:6px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
 .lu.headrow{border-top:0;font-family:var(--head);font-weight:600;color:var(--muted);font-size:15px}
 .lu input,.lu select,.set input{width:100%;min-width:0;border:1.5px solid var(--line);border-radius:6px;padding:7px 8px;background:var(--card)}
 .lu .ord{font-family:var(--head);font-weight:700;font-size:22px;text-align:center}
+.lu .drag{display:flex;align-items:center;justify-content:center;gap:6px;height:40px;border:1.5px solid transparent;border-radius:6px;background:transparent;padding:0 4px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.lu .drag:hover{border-color:var(--line);background:var(--paper)}
+.lu .drag b{font-family:var(--head);font-weight:700;font-size:22px;min-width:16px}
+.grip{width:10px;height:18px;flex:none;background-image:radial-gradient(circle,var(--muted) 1.6px,transparent 1.8px);background-size:5px 6px;opacity:.9}
+.lulist{position:relative}
+.lu.dragging{position:relative;z-index:5;background:var(--card);box-shadow:0 8px 22px rgba(0,0,0,.22);border-radius:8px;border-top-color:transparent}
+.lu.dragging .drag{cursor:grabbing;border-color:var(--ink);background:var(--active)}
+.lulist.sorting .lu:not(.dragging){transition:transform .12s ease}
+body.sorting{user-select:none;-webkit-user-select:none}
 .lu .acts{display:flex;justify-content:flex-end}
 @media (max-width:640px){
-  .lu{grid-template-columns:30px minmax(0,1fr) 56px 108px;}
+  .lu{grid-template-columns:48px minmax(0,1fr) 56px 44px;}
   .lu .opt{display:none}
   .lu.headrow .opt{display:none}
 }
@@ -188,11 +204,15 @@ label.lbl{display:block;font-family:var(--head);font-weight:600;font-size:17px;m
 .scout{container-type:inline-size}
 /* when the info box is wide enough: 1st pitch + Sac/Drag on the left, Steals + H&R on the right */
 @container (min-width:540px){
-  .scoutin{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-areas:"bats bats" "run run" "fp st" "bunt hr";column-gap:0}
+  .scoutin{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-areas:"bats run" "fp st" "bunt hr";column-gap:0}
+  .sc-bats{padding-right:14px}
+  .sc-run{padding-left:14px;border-left:1px solid var(--line);border-top:0!important}
+  .sc-bats,.sc-run{grid-template-columns:auto repeat(3,auto);justify-content:start;gap:2px 10px}
+  .sc-bats .ck,.sc-run .ck{gap:5px}
   .sc-bats{grid-area:bats}.sc-run{grid-area:run}.sc-fp{grid-area:fp}.sc-bunt{grid-area:bunt}.sc-st{grid-area:st}.sc-hr{grid-area:hr}
   .sc-fp,.sc-bunt{padding-right:14px}
   .sc-st,.sc-hr{padding-left:14px;border-left:1px solid var(--line)}
-  .sc-st{border-top:1px solid var(--line)}
+  .sc-st,.sc-fp{border-top:1px solid var(--line)}
   .sc-bunt,.sc-hr{border-top:1px solid var(--line)}
 }
 .scrow.crow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
@@ -326,6 +346,44 @@ html.nozoom #field{touch-action:manipulation}
 header.top,main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .sheet .card{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 
+/* tablets and computers: field on the left, at-bats on the right, everything above it kept tight */
+@media (min-width:720px){
+  .chartwrap{grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);grid-template-areas:"info info" "field abs";align-items:start;gap:12px 16px}
+  .fieldcol{position:sticky;top:8px}
+  header.top{padding-top:8px;gap:10px}
+  header.top h1{font-size:24px}
+  #teamSel,#sunBtn,.tabs button{padding-top:4px;padding-bottom:4px;font-size:16px}
+  main{padding-top:8px}
+  .orderbar .order{padding:2px 0 6px}
+  .order button{padding:4px 9px}
+  .order button b{font-size:17px}
+  .navbtn.sm{display:block;margin-bottom:6px}
+  .batter{display:none}
+  .bkbanner{padding:3px 4px 3px 10px;margin:0 0 6px;font-size:14px;border-width:1.5px}
+  .bkbtns .primary,.bkbtns .ghost{padding:3px 10px;font-size:15px}
+  .scout{padding:2px 10px}
+  .scrow{padding:3px 0}
+  .ck{min-height:30px}
+  .ck input{width:22px;height:22px}
+  .sclab{font-size:16px}
+  .scrow.crow .sclab{width:48px}
+  .chartwrap .inforow{grid-template-columns:minmax(0,1.85fr) minmax(0,1fr)}
+  .scrow.crow{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  .scrow.crow .chips{flex-wrap:nowrap}
+  .chip{font-size:15px;padding:1px 4px 1px 8px;flex:none;white-space:nowrap}
+  .addc,.scrow.crow .sclab,.none{flex:none;white-space:nowrap}
+  .ctot{display:none}
+  .addc{padding:2px 8px;font-size:14px}
+  .cbtn{width:28px;height:28px}
+  .tl b,.cnt b{font-size:19px}
+  .inforow .notes{min-height:0}
+  .inforow .notes .lbl{margin:0 0 2px;font-size:15px}
+  .inforow .notes textarea{min-height:0;height:100%}
+  .fieldwrap{padding:8px 10px}
+  .marktype{margin-top:6px}
+  .marktype button{padding:4px 8px;font-size:14px}
+  .abhead{margin-bottom:6px}
+}
 /* ---- phones held sideways: short and wide ---- */
 @media (orientation:landscape) and (max-height:500px) and (min-width:600px){
   header.top{padding-top:6px;gap:8px}
@@ -344,9 +402,13 @@ header.top,main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-rig
   .scrow{padding:3px 0}
   .ck{min-height:30px}
   .inforow .notes textarea{min-height:0}
-  /* field on the left, at-bats on the right, like an iPad */
-  .grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start}
-  .fieldcol{order:-1;position:sticky;top:6px;max-height:calc(100vh - 12px);max-height:calc(100dvh - 12px);overflow-y:auto;-webkit-overflow-scrolling:touch;border-radius:10px}
+  /* field top-left and always in view; info, notes and at-bats scroll on the right */
+  .chartwrap{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"field info" "field abs";gap:10px 12px;align-items:start}
+  .chartwrap .inforow{grid-template-columns:minmax(0,1fr)}
+  .inforow .notes textarea{height:70px}
+  .batter{display:none}
+  .navbtn.sm{display:block}
+  .fieldcol{position:sticky;top:6px;max-height:calc(100vh - 12px);max-height:calc(100dvh - 12px);overflow-y:auto;-webkit-overflow-scrolling:touch;border-radius:10px}
   .fieldwrap{padding:8px}
   .marktype button{padding:4px 8px;font-size:14px}
   .abhead{margin-bottom:6px}
@@ -637,7 +699,7 @@ function typeIcon(t){ return `<svg viewBox="-14 -14 28 28">${shape(t,0,0,'',fals
 function renderChart(){
   ensureCur();
   const p = player(), idx = T().players.indexOf(p);
-  const order = T().players.map((q,i)=>`<button data-p="${q.id}" class="${q.id===T().cur?'on':''}"><b>${i+1}</b><span>${esc(pName(q,i))}</span></button>`).join('');
+  const order = T().players.map((q,i)=>`<button data-p="${q.id}" class="${q.id===T().cur?'on':''}"><b>${i+1}</b>${q.num?`<i>#${esc(q.num)}</i>`:''}<span>${esc(pName(q,i))}</span></button>`).join('');
   const meta = [p.pos && `Pos ${esc(p.pos)}`, p.bats && `Bats ${p.bats}`, p.throws && `Throws ${p.throws}`].filter(Boolean).join(', ');
 
   // spray tendencies by hit type and field direction
@@ -656,19 +718,19 @@ function renderChart(){
     : `<div class="empty">No at-bats yet. Tap <b>New at-bat</b>, then tap the field where the ball went.</div>`;
 
   $('#app').innerHTML = `${backupBanner()}
-    <nav class="order" aria-label="Batting order">${order}</nav>
+    <div class="orderbar"><button class="navbtn sm" id="prev2" aria-label="Previous batter">‹</button><nav class="order" aria-label="Batting order">${order}</nav><button class="navbtn sm" id="next2" aria-label="Next batter">›</button></div>
     <div class="batter">
       <button class="navbtn" id="prev" aria-label="Previous batter">Prev</button>
       <div class="num">${esc(p.num)||'#'}</div>
       <div class="who"><h2>${idx+1}. ${esc(pName(p,idx))}</h2><p>${meta||'Add details on the Lineup tab'}</p></div>
       <button class="navbtn" id="next" aria-label="Next batter">Next</button>
     </div>
+    <div class="chartwrap">
     <div class="inforow">
       ${scoutBox(p)}
       <div class="notes"><label class="lbl" for="notes" style="margin-top:0">Notes</label><textarea id="notes" placeholder="Tendencies, approach, what he chases">${esc(p.notes)}</textarea></div>
     </div>
-    <div class="grid">
-      <section>
+      <section class="abcol">
         <div class="abhead"><h3>At-bats</h3><span style="display:flex;gap:6px"><button class="ghost" id="pdf">Team PDF</button><button class="primary" id="newAB">New at-bat</button></span></div>
         <datalist id="results">${RESULTS.map(r=>`<option value="${r}">`).join('')}</datalist>
         <div id="abs">${abs}</div>
@@ -687,7 +749,25 @@ function renderChart(){
         </div>
       </section>
     </div>`;
+  requestAnimationFrame(fitField);
 }
+// size the field so the whole thing (and the hit-type buttons) fits on screen without scrolling
+function fitField(){
+  const svg = document.getElementById('field'), wrap = document.querySelector('.chartwrap');
+  if(!svg || !wrap) return;
+  svg.style.width = ''; svg.style.margin = '';
+  const twoCol = getComputedStyle(wrap).gridTemplateColumns.trim().split(/\s+/).length > 1;
+  if(!twoCol) return;
+  const r = svg.getBoundingClientRect(), mt = document.querySelector('.marktype');
+  const below = mt ? mt.getBoundingClientRect().bottom - r.bottom : 44;
+  const sticky = getComputedStyle(svg.closest('.fieldcol')).position === 'sticky';
+  const top = sticky ? Math.min(r.top + scrollY, svg.closest('.fieldcol').getBoundingClientRect().top + scrollY + 10) : r.top + scrollY;
+  const avail = innerHeight - top - below - 14;
+  const w = Math.max(240, Math.min(r.width, avail * 400/312));
+  if(w < r.width - 1){ svg.style.width = w + 'px'; svg.style.margin = '0 auto'; }
+}
+let fitTimer;
+addEventListener('resize', ()=>{ clearTimeout(fitTimer); fitTimer = setTimeout(fitField, 120); });
 function boxBtn(a,kind,i){
   const v = a[kind][i];
   const lbl = `${kind==='b'?'Ball':'Strike'} box ${i+1}${v?`, pitch ${v.c}${v.fl?', foul ball':v.sw?', swing and miss':''}`:', empty'}`;
@@ -716,15 +796,13 @@ function abCard(a,i){
 function renderLineup(){
   const rows = T().players.map((p,i)=>`
     <div class="lu" data-p="${p.id}">
-      <span class="ord">${i+1}</span>
+      <button type="button" class="ord drag" data-drag aria-label="Batter ${i+1}. Drag to change the batting order, or use the up and down arrow keys"><span class="grip" aria-hidden="true"></span><b>${i+1}</b></button>
       <input data-f="name" value="${esc(p.name)}" placeholder="Name" aria-label="Name, batter ${i+1}">
       <input data-f="num" value="${esc(p.num)}" placeholder="#" inputmode="numeric" aria-label="Number">
       <input class="opt" data-f="pos" value="${esc(p.pos)}" placeholder="Pos" aria-label="Position">
       <select class="opt" data-f="bats" aria-label="Bats">${['','R','L','S'].map(v=>`<option ${p.bats===v?'selected':''} value="${v}">${v||'–'}</option>`).join('')}</select>
       <select class="opt" data-f="throws" aria-label="Throws">${['','R','L'].map(v=>`<option ${p.throws===v?'selected':''} value="${v}">${v||'–'}</option>`).join('')}</select>
       <span class="acts">
-        <button class="iconbtn" data-up="${p.id}" aria-label="Move up">▲</button>
-        <button class="iconbtn" data-down="${p.id}" aria-label="Move down">▼</button>
         <button class="iconbtn" data-rm="${p.id}" aria-label="Remove batter">✕</button>
       </span>
     </div>`).join('');
@@ -736,8 +814,9 @@ function renderLineup(){
         <button class="ghost" id="goImport">📷 Import from photos</button>
         <button class="ghost danger" data-delteam="${T().id}">Delete this team</button></div>
       <label class="lbl">Batting order</label>
+      <p class="hint" style="margin:0 0 6px">Drag the handle by the number to move a hitter up or down.</p>
       <div class="lu headrow"><span></span><span>Name</span><span>#</span><span class="opt">Pos</span><span class="opt">Bats</span><span class="opt">Throws</span><span></span></div>
-      ${rows}
+      <div class="lulist">${rows}</div>
       <div class="btnrow"><button class="primary" id="addP">Add batter</button></div>
     </div>
     <div class="panel" style="margin-top:16px">
@@ -1204,6 +1283,66 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Backspace'||e.key==='Delete') setBox(null);
 });
 
+/* ---------- lineup: drag to reorder ---------- */
+let lineDrag = null;
+function luRows(list){ return [...list.querySelectorAll('.lu[data-p]')]; }
+function luRenumber(list){ luRows(list).forEach((r,i)=>{ const b = r.querySelector('.drag b'); if(b) b.textContent = i+1; }); }
+function luCommit(list){
+  const ids = luRows(list).map(r=>r.dataset.p), byId = Object.fromEntries(T().players.map(p=>[p.id,p]));
+  const next = ids.map(id=>byId[id]).filter(Boolean);
+  if(next.length===T().players.length && next.some((p,i)=>p!==T().players[i])){ T().players = next; save(); }
+}
+document.addEventListener('pointerdown', e=>{
+  const h = e.target.closest && e.target.closest('.lu [data-drag]');
+  if(!h || (e.pointerType==='mouse' && e.button!==0)) return;
+  e.preventDefault();
+  const row = h.closest('.lu'), list = row.closest('.lulist'), r = row.getBoundingClientRect();
+  lineDrag = {row, list, h, id:e.pointerId, grab:e.clientY - r.top, y:e.clientY, moved:false};
+  try{ h.setPointerCapture(e.pointerId); }catch(err){}
+  row.classList.add('dragging'); list.classList.add('sorting'); document.body.classList.add('sorting');
+});
+function luMove(y){
+  const d = lineDrag; if(!d) return;
+  d.y = y;
+  const others = luRows(d.list).filter(r=>r!==d.row);
+  const before = others.find(r=>{ const b = r.getBoundingClientRect(); return y < b.top + b.height/2; });
+  const cur = d.row.nextElementSibling;
+  if(before !== cur && !(before===undefined && !cur)){
+    if(before) d.list.insertBefore(d.row, before); else d.list.appendChild(d.row);
+    luRenumber(d.list); d.moved = true;
+  }
+  d.row.style.transform = '';
+  const nat = d.row.getBoundingClientRect().top;
+  d.row.style.transform = `translateY(${y - d.grab - nat}px)`;
+}
+document.addEventListener('pointermove', e=>{
+  if(!lineDrag || e.pointerId!==lineDrag.id) return;
+  e.preventDefault();
+  luMove(e.clientY);
+  // scroll the page when dragging near the top or bottom edge
+  const edge = 60;
+  if(e.clientY < edge) scrollBy(0, -12); else if(e.clientY > innerHeight - edge) scrollBy(0, 12);
+}, {passive:false});
+function luEnd(e){
+  const d = lineDrag; if(!d || (e && e.pointerId!==undefined && e.pointerId!==d.id)) return;
+  lineDrag = null;
+  d.row.style.transform = '';
+  d.row.classList.remove('dragging'); d.list.classList.remove('sorting'); document.body.classList.remove('sorting');
+  if(d.moved){ luCommit(d.list); render(); const h = document.querySelector(`.lu[data-p="${d.row.dataset.p}"] [data-drag]`); if(h) h.focus({preventScroll:true}); }
+}
+document.addEventListener('pointerup', luEnd);
+document.addEventListener('pointercancel', luEnd);
+// keyboard: arrow keys on a handle move that hitter
+document.addEventListener('keydown', e=>{
+  const h = e.target.closest && e.target.closest('.lu [data-drag]');
+  if(!h || (e.key!=='ArrowUp' && e.key!=='ArrowDown')) return;
+  e.preventDefault();
+  const id = h.closest('.lu').dataset.p, ps = T().players, i = ps.findIndex(p=>p.id===id), j = i + (e.key==='ArrowUp'?-1:1);
+  if(j<0 || j>=ps.length) return;
+  [ps[i], ps[j]] = [ps[j], ps[i]]; save(); render();
+  const nh = document.querySelector(`.lu[data-p="${id}"] [data-drag]`); if(nh) nh.focus();
+});
+
 /* ---------- events ---------- */
 function addTeam(){
   const t = blankTeam(); S.teams.push(t); S.teamId = t.id; S.tab = 'lineup'; save(); render();
@@ -1239,9 +1378,9 @@ $('#app').addEventListener('click', e=>{
   if(el = q('[data-first]')){ const a = player().abs.find(x=>x.id===el.dataset.ab); if(a){ a.first = a.first===el.dataset.first ? '' : el.dataset.first; save(); const y=scrollY; render(); scrollTo(0,y); } return; }
   // chart tab
   if(el = q('.order [data-p]')){ T().cur = el.dataset.p; T().curAB=null; save(); render(); return; }
-  if(q('#prev')||q('#next')){
+  if(q('#prev')||q('#next')||q('#prev2')||q('#next2')){
     const i = T().players.indexOf(player()), n = T().players.length;
-    T().cur = T().players[(i + (q('#next')?1:-1) + n) % n].id; T().curAB=null; save(); render(); return;
+    T().cur = T().players[(i + ((q('#next')||q('#next2'))?1:-1) + n) % n].id; T().curAB=null; save(); render(); return;
   }
   if(el = q('[data-mt]')){ S.markType = el.dataset.mt; const a=player().abs.find(x=>x.id===T().curAB); if(a&&a.mark) a.mark.t=S.markType; save(); render(); return; }
   if(q('#newAB')){ const a=blankAB(); player().abs.push(a); T().curAB=a.id; save(); render(); return; }
@@ -1277,10 +1416,6 @@ $('#app').addEventListener('click', e=>{
     save(); render(); return;
   }
   if(q('#addP')){ T().players.push(blankPlayer()); save(); render(); return; }
-  if(el = q('[data-up]')||q('[data-down]')){
-    const id = el.dataset.up||el.dataset.down, i = T().players.findIndex(p=>p.id===id), j = el.dataset.up ? i-1 : i+1;
-    if(j>=0 && j<T().players.length){ [T().players[i],T().players[j]] = [T().players[j],T().players[i]]; save(); render(); } return;
-  }
   if(el = q('[data-rm]')){ const i=T().players.findIndex(p=>p.id===el.dataset.rm), p=T().players[i];
     if(confirm(`Remove ${pName(p,i)}${p.abs.length?` and ${p.abs.length} at-bat(s)`:''}?`)){ T().players.splice(i,1); save(); render(); } return; }
   if(el = q('#pdf')){ exportPDF(el); return; }
