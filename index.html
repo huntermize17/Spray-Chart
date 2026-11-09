@@ -196,6 +196,10 @@ body.sorting{user-select:none;-webkit-user-select:none}
 .scrow{display:grid;grid-template-columns:58px repeat(3,minmax(0,1fr));align-items:center;gap:2px 4px;padding:6px 0}
 .scrow.flags{display:flex;flex-wrap:wrap;gap:4px 20px}
 .tl{white-space:nowrap}
+.sc-fp .sclab{min-width:72px}
+.tl.smr{flex-basis:100%;padding-left:88px;margin-top:-4px}
+.tl.smr b{color:var(--strike)}
+.tl.smr small{margin-left:6px;color:var(--muted);font-size:13px}
 .unk{display:block;color:#C98300;font-weight:600;white-space:normal;margin-top:2px}
 .firstq{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;font-size:14px;font-weight:600}
 .firstq button{border:1.5px solid var(--ink);background:var(--card);border-radius:6px;padding:3px 12px;font-weight:600}
@@ -602,7 +606,7 @@ function tendencies(p){
 const pct = (v,t) => t ? Math.round(100*v/t)+'%' : '';
 const RUNNER = [['red','Red','#D0192B'],['yellow','Yellow','#F2C200'],['green','Green','#1E9A4B']];
 function scoutBox(p){
-  const fp = firstPitch(p);
+  const fp = firstPitch(p), sm = swingMiss(p);
   const cnt = (k,label) => `<span class="cnt"><span>${label}</span><button class="cbtn" data-cnt="${k}" data-d="-1" aria-label="${label} minus one" ${(p[k]||0)?'':'disabled'}>−</button><b>${p[k]||0}</b><button class="cbtn" data-cnt="${k}" data-d="1" aria-label="${label} plus one">+</button></span>`;
   const ck = (attr,val,on,label,dot='',color='') => `<label class="ck"><input type="checkbox" ${color?`class="rc" style="--rc:${color}"`:''} data-sc="${attr}" data-v="${val}" ${on?'checked':''}>${dot}<span>${label}</span></label>`;
   return `<div class="scout panel"><div class="scoutin">
@@ -612,7 +616,9 @@ function scoutBox(p){
       ${RUNNER.map(([v,l,c])=>ck('runner',v,p.runner===v,l,'',c)).join('')}</div>
     <div class="scrow tally1 sc-fp"><span class="sclab">1st pitch</span>
       <span class="tl">Swing <b>${fp.sw}</b></span><span class="tl">Take <b>${fp.tk}</b></span>
-      <span class="tl muted">${fp.sw+fp.tk ? `${Math.round(100*fp.sw/(fp.sw+fp.tk))}% swing` : ''}${fp.unk?` <span class="unk">${fp.unk} need${fp.unk===1?'s':''} a 1st-pitch answer below</span>`:''}</span></div>
+      <span class="tl muted">${fp.sw+fp.tk ? `${Math.round(100*fp.sw/(fp.sw+fp.tk))}% swing` : ''}</span>
+      <span class="tl smr" title="Misses out of all swings, from at-bats charted in the app">Swing &amp; miss <b>${sm.swings ? sm.pct+'%' : '–'}</b>${sm.swings?`<small>${sm.misses}/${sm.swings}</small>`:''}</span>
+      ${fp.unk?`<span class="unk">${fp.unk} need${fp.unk===1?'s':''} a 1st-pitch answer below</span>`:''}</div>
     <div class="scrow bunts sc-bunt">${cnt('sacN','Sac')}${cnt('dragN','Drag')}</div>
     ${countRow(p,'steals','Steals','Steal','sc-st')}
     ${countRow(p,'hitruns','H&amp;R','Hit and run','sc-hr')}
@@ -648,6 +654,29 @@ document.addEventListener('click', e=>{
 });
 // first pitch of each at-bat, counted only when it was a strike:
 // a called strike counts as a take, a swinging strike (circled) counts as a swing
+// Swing and miss rate, from at-bats charted in the app only (photo imports are left out).
+// Every swing counts: "swung at" strikes and foul balls. Fouls are contact, never misses.
+// A "swung at" strike that is the last pitch of the at-bat is the ball he put in play, so it is not a miss,
+// unless the at-bat ended in a strikeout (then he swung through strike three).
+const isK = r => /^(K|SO)/i.test(String(r||'').trim());
+function swingMiss(p){
+  let swings = 0, misses = 0, abs = 0;
+  p.abs.forEach(a=>{
+    if(a.imp || a.noSeq) return;
+    const ps = [...a.b, ...a.s].filter(Boolean);
+    if(!ps.length) return;
+    abs++;
+    const lastQ = Math.max(...ps.map(x=>x.q));
+    a.s.forEach(x=>{
+      if(!x || !x.sw) return;
+      swings++;
+      if(x.fl) return;
+      if(x.q===lastQ && !isK(a.result)) return;   // contact on the final pitch
+      misses++;
+    });
+  });
+  return {swings, misses, abs, pct: swings ? Math.round(100*misses/swings) : null};
+}
 function firstPitch(p){
   let sw = 0, tk = 0, unk = 0;
   p.abs.forEach(a=>{
@@ -1978,7 +2007,7 @@ function commitImport(){
     if(h.hitRuns && h.hitRuns.length && !(p.hitruns||[]).length) p.hitruns = h.hitRuns.slice();
     if(h.throws) p.throws = h.throws;
     if(h.notes && !p.notes.includes(h.notes)) p.notes = p.notes ? p.notes + '\n' + h.notes : h.notes;
-    h.atBats.forEach(a=>{ const c = {...a}; delete c.n; c.id = uid(); p.abs.push(c); addedAB++; });
+    h.atBats.forEach(a=>{ const c = {...a}; delete c.n; c.id = uid(); c.imp = true; p.abs.push(c); addedAB++; });
     if(h.extras && h.extras.length){ p.sprays = (p.sprays||[]).concat(h.extras.map(m=>({...m, id:uid()}))); addedX += h.extras.length; }
   }));
   S.teamId = team.id; team.cur = null; team.curAB = null;
@@ -2174,7 +2203,15 @@ async function exportPDF(btn){
       line(tx,ty-3,W-M,ty-3);
       const hits = p.abs.filter(a=>isHit(a.result)).length;
       text(`${p.abs.length} at-bat${p.abs.length===1?'':'s'}, ${hits} hit${hits===1?'':'s'}`,tx,ty+3,9.5,reg,C.muted);
-      ty+=18;
+      ty+=16;
+      const sm = swingMiss(p);
+      text('Swing & miss:',tx,ty+3,10.5,bold);
+      const smx = tx + bold.widthOfTextAtSize('Swing & miss:',10.5) + 5;
+      if(sm.swings){
+        text(`${sm.pct}%`,smx,ty+2,12,bold,C.strike);
+        text(`${sm.misses} of ${sm.swings} swing${sm.swings===1?'':'s'}`,smx + bold.widthOfTextAtSize(`${sm.pct}%`,12) + 6,ty+3,9.5,reg,C.muted);
+      } else text(sm.abs ? 'no swings yet' : 'no at-bats charted in the app',smx,ty+3,9.5,reg,C.muted);
+      ty+=20;
       // notes
       const sumC = list => { const t={}; (list||[]).forEach(c=>t[c]=(t[c]||0)+1); return COUNTS.filter(c=>t[c]).map(c=>t[c]>1?`${c} x${t[c]}`:c).join(', '); };
       [['Steals',p.steals],['H&R',p.hitruns]].forEach(([l,list])=>{
