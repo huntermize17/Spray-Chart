@@ -113,7 +113,8 @@ main{max-width:1100px;margin:0 auto;padding:12px 16px 40px}
 
 
 .panel{background:var(--card);border:1.5px solid var(--line);border-radius:10px;padding:12px}
-.fieldwrap svg{width:100%;height:auto;display:block;touch-action:manipulation;cursor:crosshair;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.fieldwrap svg{width:100%;height:auto;display:block;touch-action:manipulation;cursor:crosshair;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-user-drag:none}
+.fieldwrap svg *{-webkit-user-drag:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 #field .mk,#field .mkx{transform-box:fill-box;transform-origin:center}
 #field .lifted{filter:drop-shadow(0 3px 3px rgba(0,0,0,.45))}
 #field .lifted rect,#field .lifted circle,#field .lifted polygon{stroke:var(--strike);stroke-width:3}
@@ -511,6 +512,7 @@ function readFirebaseSetup(){
 let FIREBASE_CONFIG = readFirebaseSetup();
 const CAN_FETCH_CONFIG = /^https?:/.test(location.protocol);
 
+const APP_VERSION = '2026-11-09b';
 const KEY = 'sprayChart.v1';
 const BOXES = 12;
 const PCOL = ['var(--p1)','var(--p2)','var(--p3)','var(--p4)','var(--p5)'];
@@ -961,6 +963,7 @@ function renderBackup(){
       <p class="hint"><b>Add teams</b> keeps what is on this device and brings in the backup's teams, which is good for combining two phones. <b>Replace everything</b> wipes this device and puts the backup back exactly as it was, including the pitch key.</p>
       <input type="file" id="impFile" accept=".json,application/json" hidden>
     </div>
+    <p class="hint" style="text-align:center;margin-top:16px">App version ${APP_VERSION}</p>
     <div class="panel" style="margin-top:16px">
       <h2 class="bkh">Keep data from getting cleared</h2>
       <p class="hint" style="margin-top:0">Charts live in this browser on this device. On iPhone and iPad, Safari can clear website data if the site is not opened for a few weeks. Add the app to your Home Screen (Share, then <b>Add to Home Screen</b>) and open it from there to keep your data. Clearing Safari history or website data also erases it, so back up often.</p>
@@ -1336,35 +1339,32 @@ function placeMark(loc){
   a.mark = {...clampXY(loc), t:S.markType};
   save(); render();
 }
-document.addEventListener('pointerdown', e=>{
-  const svg = e.target.closest && e.target.closest('#field');
-  if(!svg || (e.pointerType==='mouse' && e.button!==0)) return;
-  const loc = svgPt(svg, e), hit = markNear(player(), loc.x, loc.y);
-  const fp = fieldPress = {svg, id:e.pointerId, sx:e.clientX, sy:e.clientY, loc, cur:loc, hit, held:false, moved:false, cancel:false, el:null};
+// One handler for mouse, pen and touch. Touch uses touch events directly: on iPad/iPhone a long press
+// can be taken over by the system (drag and drop, text selection), which cancels pointer events.
+function fieldStart(svg, cx, cy, id){
+  const fake = {clientX:cx, clientY:cy};
+  const loc = svgPt(svg, fake), hit = markNear(player(), loc.x, loc.y);
+  const fp = fieldPress = {svg, id, sx:cx, sy:cy, loc, cur:loc, hit, held:false, moved:false, cancel:false, el:null};
   if(hit) fp.timer = setTimeout(()=>{
     if(fieldPress!==fp || fp.cancel) return;
     fp.held = true;
     fp.el = svg.querySelector(hit.kind==='ab' ? `.mk[data-ab="${hit.id}"]` : `.mkx[data-xm="${hit.id}"]`);
     if(fp.el){ fp.el.classList.add('lifted'); fp.el.style.transform = 'scale(1.35)'; svg.appendChild(fp.el); }
-    try{ svg.setPointerCapture(fp.id); }catch(err){}
-    if(navigator.vibrate) navigator.vibrate(15);
+    if(navigator.vibrate) try{ navigator.vibrate(15); }catch(e){}
   }, 450);
-});
-document.addEventListener('pointermove', e=>{
-  const fp = fieldPress; if(!fp || e.pointerId!==fp.id) return;
-  const dist = Math.hypot(e.clientX-fp.sx, e.clientY-fp.sy);
-  if(!fp.held){ if(dist > 10){ fp.cancel = true; clearTimeout(fp.timer); } return; }
-  e.preventDefault();
-  fp.cur = svgPt(fp.svg, e);
+}
+function fieldMove(cx, cy){
+  const fp = fieldPress; if(!fp) return false;
+  const dist = Math.hypot(cx-fp.sx, cy-fp.sy);
+  if(!fp.held){ if(dist > 10){ fp.cancel = true; clearTimeout(fp.timer); } return false; }
+  fp.cur = svgPt(fp.svg, {clientX:cx, clientY:cy});
   if(dist > 6) fp.moved = true;
   const to = clampXY(fp.cur);
   if(fp.el) fp.el.style.transform = `translate(${to.x - fp.hit.m.x}px, ${to.y - fp.hit.m.y}px) scale(1.35)`;
-}, {passive:false});
-// keep the page from scrolling while a mark is being moved
-document.addEventListener('touchmove', e=>{ if(fieldPress && fieldPress.held) e.preventDefault(); }, {passive:false});
-document.addEventListener('contextmenu', e=>{ if(e.target.closest && e.target.closest('#field')) e.preventDefault(); });
-document.addEventListener('pointerup', e=>{
-  const fp = fieldPress; if(!fp || e.pointerId!==fp.id) return;
+  return true;
+}
+function fieldEnd(cx, cy){
+  const fp = fieldPress; if(!fp) return;
   fieldPress = null; clearTimeout(fp.timer);
   if(fp.held){
     const p = player();
@@ -1379,18 +1379,65 @@ document.addEventListener('pointerup', e=>{
       T().curAB = fp.hit.id; if(a && a.mark) S.markType = a.mark.t; save(); render();
       const card = document.querySelector(`.ab[data-ab="${fp.hit.id}"]`); if(card) card.scrollIntoView({block:'nearest', behavior:'smooth'});
     } else {
-      if(confirm('Remove this spray mark? It came from a paper chart line that is not tied to an at-bat.')){ p.sprays = (p.sprays||[]).filter(m=>m.id!==fp.hit.id); save(); }
       render();
+      setTimeout(()=>{ if(confirm('Remove this spray mark? It came from a paper chart line that is not tied to an at-bat.')){ p.sprays = (p.sprays||[]).filter(m=>m.id!==fp.hit.id); save(); render(); } }, 30);
     }
     return;
   }
-  if(!fp.cancel && Math.hypot(e.clientX-fp.sx, e.clientY-fp.sy) <= 10) placeMark(fp.loc);
+  if(!fp.cancel && Math.hypot(cx-fp.sx, cy-fp.sy) <= 10) placeMark(fp.loc);
+}
+function fieldAbort(){ const fp = fieldPress; if(!fp) return; fieldPress = null; clearTimeout(fp.timer); if(fp.held) render(); }
+
+// touch
+let fieldTouchAt = 0;
+document.addEventListener('touchstart', e=>{
+  const svg = e.target.closest && e.target.closest('#field');
+  if(!svg){ return; }
+  if(e.touches.length > 1){ fieldAbort(); return; }
+  const t = e.changedTouches[0];
+  fieldStart(svg, t.clientX, t.clientY, 't' + t.identifier);
+}, {passive:true});
+document.addEventListener('touchmove', e=>{
+  const fp = fieldPress; if(!fp || typeof fp.id!=='string') return;
+  const t = [...e.changedTouches].find(x=>'t'+x.identifier===fp.id); if(!t) return;
+  if(fieldMove(t.clientX, t.clientY) || fp.held) e.preventDefault();   // page stays still while a mark is moved
+}, {passive:false});
+document.addEventListener('touchend', e=>{
+  const fp = fieldPress; if(!fp || typeof fp.id!=='string') return;
+  const t = [...e.changedTouches].find(x=>'t'+x.identifier===fp.id); if(!t) return;
+  fieldTouchAt = Date.now();
+  if(e.cancelable) e.preventDefault();      // no extra click / double-tap zoom after a tap on the field
+  fieldEnd(t.clientX, t.clientY);
+}, {passive:false});
+document.addEventListener('touchcancel', e=>{
+  const fp = fieldPress; if(!fp || typeof fp.id!=='string') return;
+  // the system took over the gesture; finish a held mark where it was, otherwise drop it
+  if(fp.held) fieldEnd(fp.sx, fp.sy); else fieldAbort();
+});
+// mouse and pen
+document.addEventListener('pointerdown', e=>{
+  if(e.pointerType==='touch') return;
+  const svg = e.target.closest && e.target.closest('#field');
+  if(!svg || (e.pointerType==='mouse' && e.button!==0)) return;
+  if(Date.now() - fieldTouchAt < 700) return;
+  fieldStart(svg, e.clientX, e.clientY, e.pointerId);
+  try{ svg.setPointerCapture(e.pointerId); }catch(err){}
+});
+document.addEventListener('pointermove', e=>{
+  if(e.pointerType==='touch' || !fieldPress || fieldPress.id!==e.pointerId) return;
+  if(fieldMove(e.clientX, e.clientY)) e.preventDefault();
+});
+document.addEventListener('pointerup', e=>{
+  if(e.pointerType==='touch' || !fieldPress || fieldPress.id!==e.pointerId) return;
+  fieldEnd(e.clientX, e.clientY);
 });
 document.addEventListener('pointercancel', e=>{
-  const fp = fieldPress; if(!fp || e.pointerId!==fp.id) return;
-  fieldPress = null; clearTimeout(fp.timer);
-  if(fp.held) render();
+  if(e.pointerType==='touch' || !fieldPress || fieldPress.id!==e.pointerId) return;
+  fieldAbort();
 });
+document.addEventListener('contextmenu', e=>{ if(e.target.closest && e.target.closest('#field')) e.preventDefault(); });
+document.addEventListener('dragstart', e=>{ if(e.target.closest && e.target.closest('#field')) e.preventDefault(); });
+document.addEventListener('selectstart', e=>{ if(fieldPress) e.preventDefault(); });
 
 /* ---------- lineup: drag to reorder ---------- */
 let lineDrag = null;
