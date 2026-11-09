@@ -147,8 +147,17 @@ main{max-width:1100px;margin:0 auto;padding:12px 16px 40px}
 .primary{border:0;background:var(--ink);color:var(--paper);border-radius:6px;padding:9px 14px;font-family:var(--head);font-weight:600;font-size:18px}
 .ab{border:1.5px solid var(--line);border-radius:8px;padding:8px;margin-bottom:8px;background:var(--card)}
 .ab.on{border-color:var(--ink);background:var(--active)}
-.abtop{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.abtop{display:flex;align-items:center;gap:6px;margin-bottom:6px}
 .abno{font-family:var(--head);font-weight:700;font-size:22px;min-width:30px}
+.reswrap{position:relative;flex:1;min-width:0;display:flex}
+.reswrap input{flex:1;min-width:0}
+.klshow{display:none;position:absolute;left:10px;top:50%;transform:translateY(-50%);font-weight:600;pointer-events:none}
+.reswrap.kl:not(:focus-within) input{color:transparent}
+.reswrap.kl:not(:focus-within) .klshow{display:block}
+.bk{display:inline-block;transform:scaleX(-1)}
+.kbtn{flex:none;width:36px;height:34px;border:1.5px solid var(--line);border-radius:6px;background:var(--card);font-family:var(--head);font-weight:700;font-size:20px;padding:0;line-height:1}
+.kbtn.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+[data-theme="sun"] .kbtn{border-width:2px;border-color:#000}
 .abtop input{flex:1;min-width:0;border:1.5px solid var(--line);border-radius:6px;padding:6px 8px;background:var(--card);font-weight:600}
 .iconbtn{border:0;background:transparent;color:var(--muted);padding:6px 8px;border-radius:6px;font-size:14px}
 .iconbtn:hover{color:var(--ink);background:var(--line)}
@@ -512,7 +521,7 @@ function readFirebaseSetup(){
 let FIREBASE_CONFIG = readFirebaseSetup();
 const CAN_FETCH_CONFIG = /^https?:/.test(location.protocol);
 
-const APP_VERSION = '2026-11-09c';
+const APP_VERSION = '2026-11-09e';
 const KEY = 'sprayChart.v1';
 const BOXES = 12;
 const PCOL = ['var(--p1)','var(--p2)','var(--p3)','var(--p4)','var(--p5)'];
@@ -520,6 +529,9 @@ const RESULTS = ['1B','2B','3B','HR','BB','HBP','K','KL','E','FC','SAC','6-3','4
 const uid = () => Math.random().toString(36).slice(2,9);
 
 function blankPlayer(){ return {id:uid(),name:'',num:'',pos:'',bats:'',throws:'',notes:'',abs:[]}; }
+// "KL" is how a backwards K (struck out looking) is stored; it is drawn as a mirrored K everywhere
+const isKL = r => /^(KL|ꓘ)/i.test(String(r||'').trim());
+const resHTML = r => isKL(r) ? `<span class="bk">K</span>${esc(String(r).trim().replace(/^(KL|ꓘ)/i,''))}` : esc(r||'');
 function blankAB(){ return {id:uid(),b:Array(BOXES).fill(null),s:Array(BOXES).fill(null),result:'',mark:null,ts:Date.now()}; }
 // the Foul ball choice was added Nov 3, 2026; swing and miss only counts at-bats charted since then
 const FOUL_START = new Date(2026, 10, 3).getTime();
@@ -817,7 +829,7 @@ function abCard(a,i){
   return `<div class="ab ${a.id===T().curAB?'on':''}" data-ab="${a.id}">
     <div class="abtop">
       <span class="abno">${i+1}</span>
-      <input list="results" data-res="${a.id}" value="${esc(a.result)}" placeholder="Result (1B, 6-3, K...)" aria-label="Result for at-bat ${i+1}">
+      <span class="reswrap${isKL(a.result)?' kl':''}"><input list="results" data-res="${a.id}" value="${esc(a.result)}" placeholder="Result (1B, 6-3, K, KL...)" aria-label="Result for at-bat ${i+1}"><span class="klshow" aria-hidden="true"><span class="bk">K</span>${esc(String(a.result).trim().slice(2))}</span></span>
       <button class="iconbtn" data-del="${a.id}" aria-label="Delete at-bat ${i+1}">Delete</button>
     </div>
     <div class="row b"><span class="lab">B</span><div class="boxes">${Array.from({length:BOXES},(_,k)=>boxBtn(a,'b',k)).join('')}</div></div>
@@ -1594,7 +1606,7 @@ $('#app').addEventListener('click', e=>{
 $('#app').addEventListener('input', e=>{
   const t = e.target;
   if(t.id==='notes'){ player().notes = t.value; save(); return; }
-  if(t.dataset.res){ const a=player().abs.find(x=>x.id===t.dataset.res); a.result=t.value; save(); return; }
+  if(t.dataset.res){ const a=player().abs.find(x=>x.id===t.dataset.res); a.result=t.value.replace(/^\s*ꓘ/,'KL'); save(); return; }
   if(t.id==='team'){ T().name=t.value; save(); render(); const el=$('#team'); el.focus(); el.setSelectionRange(el.value.length,el.value.length); return; }
   if(t.dataset.pitch){ S.pitches[+t.dataset.pitch]=t.value; save(); return; }
   if(t.dataset.f){ const p=T().players.find(x=>x.id===t.closest('.lu').dataset.p); p[t.dataset.f]=t.value; save(); return; }
@@ -1745,7 +1757,7 @@ function hitterReview(h,i,j,team){
   const rows = h.atBats.map(a=>{
     const bl = a.b.filter(Boolean).map(x=>`<span style="color:${PCOL[x.c-1]}">${x.c}</span>`).join(' ');
     const st = a.s.filter(Boolean).map(x=>`<span style="color:${PCOL[x.c-1]}" class="${x.sw&&!x.fl?'swc':''}">${x.c}${x.fl?'<span class="flm">F</span>':''}</span>`).join(' ');
-    return `<tr><td>${a.n||''}</td><td>${bl||'-'}</td><td>${st||'-'}</td><td><b>${esc(a.result||'')}</b></td><td>${a.mark?{GB:'Ground',FB:'Fly',LD:'Line'}[a.mark.t]:''}</td></tr>`;
+    return `<tr><td>${a.n||''}</td><td>${bl||'-'}</td><td>${st||'-'}</td><td><b>${resHTML(a.result)}</b></td><td>${a.mark?{GB:'Ground',FB:'Fly',LD:'Line'}[a.mark.t]:''}</td></tr>`;
   }).join('');
   return `<div class="hrev ${h.include?'':'off'}">
     <div class="hrevtop">
@@ -1799,7 +1811,7 @@ Return ONLY JSON in exactly this shape:
 Rules:
 - "n" = the at-bat row number. Skip empty rows.
 - "pitches": one entry per filled box. "col" = the box's column counted from the left starting at 1, the same for the B and S lines (a B box and the S box directly under it share a col). "swung" only for circled S-line pitches. "foul": true for S-line pitches marked as foul balls.
-- "result": exactly as written (F-7, 1-3, K, 2B, 4-3, BB, HBP, 1B-7, 3U...).
+- "result": exactly as written (F-7, 1-3, K, 2B, 4-3, BB, HBP, 1B-7, 3U...). A backwards K (struck out looking) is reported as "KL"; a normal K stays "K".
 - "hitType": "GB", "FB" or "LD" from the line style (or from the result if there is no line), "" for strikeouts, walks and HBP.
 - "spray": the matched line's end point, or null if the at-bat has no line. "end" = "arrow", "cap" or "".
 - "bats": "R", "L", "S" or "". "runner": "green", "yellow", "red" or "".
@@ -2264,7 +2276,14 @@ async function exportPDF(btn){
         });
         const rx=x+24+BOXES*bw+3, rw=cw-(24+BOXES*bw+3)-6;
         rect(rx,y,rw,2*bh,{borderColor:C.ink,borderWidth:0.6});
-        text(fit(a.result,bold,8.5,rw-4),rx+3,y+bh-4,8.5,bold);
+        if(isKL(a.result)){
+          const kx = rx+3, kw = bold.widthOfTextAtSize('K',8.5);
+          pg.pushOperators(PDFLib.pushGraphicsState(), PDFLib.concatTransformationMatrix(-1,0,0,1, 2*kx+kw, 0));
+          text('K',kx,y+bh-4,8.5,bold);
+          pg.pushOperators(PDFLib.popGraphicsState());
+          const rest = String(a.result).trim().replace(/^(KL|ꓘ)/i,'');
+          if(rest) text(fit(rest,bold,8.5,rw-4-kw),kx+kw+1,y+bh-4,8.5,bold);
+        } else text(fit(a.result,bold,8.5,rw-4),rx+3,y+bh-4,8.5,bold);
       }
       return from+cols*rows;
     }
