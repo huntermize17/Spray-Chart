@@ -113,7 +113,10 @@ main{max-width:1100px;margin:0 auto;padding:12px 16px 40px}
 
 
 .panel{background:var(--card);border:1.5px solid var(--line);border-radius:10px;padding:12px}
-.fieldwrap svg{width:100%;height:auto;display:block;touch-action:manipulation;cursor:crosshair}
+.fieldwrap svg{width:100%;height:auto;display:block;touch-action:manipulation;cursor:crosshair;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#field .mk,#field .mkx{transform-box:fill-box;transform-origin:center}
+#field .lifted{filter:drop-shadow(0 3px 3px rgba(0,0,0,.45))}
+#field .lifted rect,#field .lifted circle,#field .lifted polygon{stroke:var(--strike);stroke-width:3}
 .marktype{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center}
 .marktype button{display:flex;align-items:center;gap:6px;border:1.5px solid var(--line);background:transparent;border-radius:6px;padding:6px 10px;font-size:15px}
 .marktype button[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);font-weight:600}
@@ -697,11 +700,11 @@ function fieldSVG(p){
   let marks = '';
   p.abs.forEach((a,i)=>{
     if(!a.mark) return;
-    marks += `<g class="mk${a.id===T().curAB?' on':''}" data-ab="${a.id}" style="cursor:pointer">${shape(a.mark.t,a.mark.x,a.mark.y,i+1,isHit(a.result),a.id===T().curAB)}</g>`;
+    marks += `<g class="mk${a.id===T().curAB?' on':''}" data-ab="${a.id}">${shape(a.mark.t,a.mark.x,a.mark.y,i+1,isHit(a.result),a.id===T().curAB)}</g>`;
   });
   // spray lines from paper that aren't tied to an at-bat: drawn dashed, no number
   (p.sprays||[]).forEach(m=>{
-    marks = `<g class="mkx" data-xm="${m.id}" style="cursor:pointer">${shape(m.t,m.x,m.y,'',false,false)}</g>` + marks;
+    marks = `<g class="mkx" data-xm="${m.id}">${shape(m.t,m.x,m.y,'',false,false)}</g>` + marks;
   });
   return `<svg id="field" viewBox="0 0 400 312" role="img" aria-label="Baseball field, tap to mark where the ball went">
     <path d="M200,300 L0,100 A283,283 0 0 1 400,100 Z" fill="var(--grass)"/>
@@ -770,7 +773,7 @@ function renderChart(){
           <div class="marktype" role="group" aria-label="Type of hit">
             ${[['GB','Ground ball'],['FB','Fly ball'],['LD','Line drive']].map(([k,l])=>`<button data-mt="${k}" aria-pressed="${S.markType===k}">${typeIcon(k)}${l}</button>`).join('')}
           </div>
-          <p class="hint">Tap the field to mark the ball for the highlighted at-bat. Filled shapes are hits.${(p.sprays||[]).length?` Dashed shapes without a number are paper-chart lines not tied to an at-bat (${p.sprays.length}); they count in the tendencies. Tap one to remove it.`:''}</p>
+          <p class="hint">Tap to mark where the ball went for the highlighted at-bat, even on top of other marks. Press and hold a mark to pick that at-bat; keep holding and slide to move it. Filled shapes are hits.${(p.sprays||[]).length?` Dashed shapes without a number are paper-chart lines not tied to an at-bat (${p.sprays.length}); they count in the tendencies. Hold one and let go to remove it.`:''}</p>
           <h4 class="tendh">Spray tendencies</h4>
           <p class="headline">${headline}</p>
           <table class="tally"><thead><tr><th></th>${td.cols.map(c=>`<th>${c}</th>`).join('')}<th>Total</th></tr></thead><tbody>${tRows}</tbody></table>
@@ -1312,6 +1315,83 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Backspace'||e.key==='Delete') setBox(null);
 });
 
+/* ---------- field: tap to place, press and hold to pick or move a mark ---------- */
+let fieldPress = null;
+function svgPt(svg, e){ const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; return pt.matrixTransform(svg.getScreenCTM().inverse()); }
+const clampXY = loc => ({x:Math.round(Math.max(12,Math.min(388,loc.x))), y:Math.round(Math.max(14,Math.min(300,loc.y)))});
+function markNear(p, x, y){
+  const c = [];
+  p.abs.forEach(a=>{ if(a.mark) c.push({kind:'ab', id:a.id, m:a.mark, d:Math.hypot(a.mark.x-x, a.mark.y-y)}); });
+  (p.sprays||[]).forEach(m=>c.push({kind:'x', id:m.id, m, d:Math.hypot(m.x-x, m.y-y)}));
+  const near = c.filter(o=>o.d < 20).sort((a,b)=>a.d-b.d);
+  if(!near.length) return null;
+  // marks stacked on the same spot: skip the at-bat that's already highlighted, so holding again reaches the one underneath
+  const tied = near.filter(o=>o.d - near[0].d < 4);
+  return tied.find(o=>!(o.kind==='ab' && o.id===T().curAB)) || tied[0];
+}
+function placeMark(loc){
+  const p = player();
+  let a = p.abs.find(x=>x.id===T().curAB);
+  if(!a){ a = blankAB(); p.abs.push(a); T().curAB = a.id; }
+  a.mark = {...clampXY(loc), t:S.markType};
+  save(); render();
+}
+document.addEventListener('pointerdown', e=>{
+  const svg = e.target.closest && e.target.closest('#field');
+  if(!svg || (e.pointerType==='mouse' && e.button!==0)) return;
+  const loc = svgPt(svg, e), hit = markNear(player(), loc.x, loc.y);
+  const fp = fieldPress = {svg, id:e.pointerId, sx:e.clientX, sy:e.clientY, loc, cur:loc, hit, held:false, moved:false, cancel:false, el:null};
+  if(hit) fp.timer = setTimeout(()=>{
+    if(fieldPress!==fp || fp.cancel) return;
+    fp.held = true;
+    fp.el = svg.querySelector(hit.kind==='ab' ? `.mk[data-ab="${hit.id}"]` : `.mkx[data-xm="${hit.id}"]`);
+    if(fp.el){ fp.el.classList.add('lifted'); fp.el.style.transform = 'scale(1.35)'; svg.appendChild(fp.el); }
+    try{ svg.setPointerCapture(fp.id); }catch(err){}
+    if(navigator.vibrate) navigator.vibrate(15);
+  }, 450);
+});
+document.addEventListener('pointermove', e=>{
+  const fp = fieldPress; if(!fp || e.pointerId!==fp.id) return;
+  const dist = Math.hypot(e.clientX-fp.sx, e.clientY-fp.sy);
+  if(!fp.held){ if(dist > 10){ fp.cancel = true; clearTimeout(fp.timer); } return; }
+  e.preventDefault();
+  fp.cur = svgPt(fp.svg, e);
+  if(dist > 6) fp.moved = true;
+  const to = clampXY(fp.cur);
+  if(fp.el) fp.el.style.transform = `translate(${to.x - fp.hit.m.x}px, ${to.y - fp.hit.m.y}px) scale(1.35)`;
+}, {passive:false});
+// keep the page from scrolling while a mark is being moved
+document.addEventListener('touchmove', e=>{ if(fieldPress && fieldPress.held) e.preventDefault(); }, {passive:false});
+document.addEventListener('contextmenu', e=>{ if(e.target.closest && e.target.closest('#field')) e.preventDefault(); });
+document.addEventListener('pointerup', e=>{
+  const fp = fieldPress; if(!fp || e.pointerId!==fp.id) return;
+  fieldPress = null; clearTimeout(fp.timer);
+  if(fp.held){
+    const p = player();
+    if(fp.moved){
+      const to = clampXY(fp.cur);
+      if(fp.hit.kind==='ab'){ const a = p.abs.find(x=>x.id===fp.hit.id); if(a && a.mark){ a.mark.x = to.x; a.mark.y = to.y; T().curAB = a.id; S.markType = a.mark.t; } }
+      else { const m = (p.sprays||[]).find(x=>x.id===fp.hit.id); if(m){ m.x = to.x; m.y = to.y; } }
+      save(); render(); return;
+    }
+    if(fp.hit.kind==='ab'){
+      const a = p.abs.find(x=>x.id===fp.hit.id);
+      T().curAB = fp.hit.id; if(a && a.mark) S.markType = a.mark.t; save(); render();
+      const card = document.querySelector(`.ab[data-ab="${fp.hit.id}"]`); if(card) card.scrollIntoView({block:'nearest', behavior:'smooth'});
+    } else {
+      if(confirm('Remove this spray mark? It came from a paper chart line that is not tied to an at-bat.')){ p.sprays = (p.sprays||[]).filter(m=>m.id!==fp.hit.id); save(); }
+      render();
+    }
+    return;
+  }
+  if(!fp.cancel && Math.hypot(e.clientX-fp.sx, e.clientY-fp.sy) <= 10) placeMark(fp.loc);
+});
+document.addEventListener('pointercancel', e=>{
+  const fp = fieldPress; if(!fp || e.pointerId!==fp.id) return;
+  fieldPress = null; clearTimeout(fp.timer);
+  if(fp.held) render();
+});
+
 /* ---------- lineup: drag to reorder ---------- */
 let lineDrag = null;
 function luRows(list){ return [...list.querySelectorAll('.lu[data-p]')]; }
@@ -1417,17 +1497,7 @@ $('#app').addEventListener('click', e=>{
     if(confirm(`Delete at-bat ${i+1}?`)){ p.abs.splice(i,1); T().curAB=null; save(); render(); } return; }
   if(el = q('[data-unmark]')){ player().abs.find(a=>a.id===el.dataset.unmark).mark=null; save(); render(); return; }
   if(el = q('.box')){ openPicker(el.dataset.ab, el.dataset.k, +el.dataset.i); return; }
-  if(el = q('.mkx')){ const p = player(); if(confirm('Remove this spray mark? It came from a paper chart line that is not tied to an at-bat.')){ p.sprays = (p.sprays||[]).filter(m=>m.id!==el.dataset.xm); save(); render(); } return; }
-  if(el = q('.mk')){ T().curAB = el.dataset.ab; const a=player().abs.find(x=>x.id===T().curAB); if(a&&a.mark) S.markType=a.mark.t; save(); render(); return; }
-  if(el = q('#field')){
-    const p = player();
-    let a = p.abs.find(x=>x.id===T().curAB);
-    if(!a){ a = blankAB(); p.abs.push(a); T().curAB = a.id; }
-    const pt = el.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY;
-    const loc = pt.matrixTransform(el.getScreenCTM().inverse());
-    a.mark = {x:Math.round(Math.max(12,Math.min(388,loc.x))), y:Math.round(Math.max(14,Math.min(300,loc.y))), t:S.markType};
-    save(); render(); return;
-  }
+  if(q('#field')) return;   // taps and holds on the field are handled by fieldPress below
   if(el = q('.ab')){ if(t.tagName!=='INPUT' && T().curAB!==el.dataset.ab){ T().curAB = el.dataset.ab; save(); render(); } return; }
 
   // lineup tab
