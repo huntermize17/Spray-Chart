@@ -84,7 +84,8 @@ html{scroll-padding-top:var(--topzone)}
 /* "homeapp" is set by a script in the page head when the app was opened from the home screen
    (iPadOS doesn't report the standard display-mode for these apps, so a CSS media query can't detect it) */
 /* iPadOS blurs roughly the top 40pt of a home-screen app; keep everything below that */
-:root.homeapp{--topzone:max(16px, calc(env(safe-area-inset-top,0px) + 12px))}
+/* iPadOS needs the solid band to be taller than 10px to skip its blur, so 11px is the smallest that works */
+:root.homeapp{--topzone:max(11px, calc(env(safe-area-inset-top,0px) + 8px))}
 .homeapp #edgeband{display:block;position:fixed;top:0;left:0;right:0;height:var(--topzone);background:var(--paper);z-index:2147483647}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.4}
@@ -477,7 +478,7 @@ header.top,main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-rig
    full-width, solid-colored box at the top and, when it finds one, skips its blur over the top of the page. */
   :root.homeapp{padding-top:var(--topzone)}
   .homeapp header.top{position:sticky;top:var(--topzone);z-index:30;background:var(--paper);max-width:none;margin:0;
-    padding-top:6px!important;padding-bottom:8px;
+    padding-top:1px!important;padding-bottom:6px;
     padding-left:max(16px, calc((100% - 1100px)/2 + 16px), env(safe-area-inset-left,0px))!important;
     padding-right:max(16px, calc((100% - 1100px)/2 + 16px), env(safe-area-inset-right,0px))!important}
   .homeapp .fieldcol{top:calc(var(--topzone) + var(--hdr,60px) + 8px)!important}
@@ -562,7 +563,7 @@ function readFirebaseSetup(){
 let FIREBASE_CONFIG = readFirebaseSetup();
 const CAN_FETCH_CONFIG = /^https?:/.test(location.protocol);
 
-const APP_VERSION = '2026-11-10l';
+const APP_VERSION = '2026-11-10m';
 const KEY = 'sprayChart.v1';
 const BOXES = 12;
 const PCOL = ['var(--p1)','var(--p2)','var(--p3)','var(--p4)','var(--p5)'];
