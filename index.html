@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="Spray Chart">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#F5F6F2" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#141A26" media="(prefers-color-scheme: dark)">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -71,7 +71,7 @@ html{scroll-padding-top:var(--topzone)}
 /* iPadOS/iOS blur the area under and just below the clock and battery when the app runs from the home screen.
    Keep the page out of that zone and fill it with a solid strip, so nothing readable ever sits in the blur. */
 :root{--topzone:env(safe-area-inset-top,0px)}
-@media (display-mode: standalone){ :root{--topzone:calc(env(safe-area-inset-top,0px) * 2)} }
+@media (display-mode: standalone){ :root{--topzone:calc(env(safe-area-inset-top,0px) * 3)} }
 body::before{content:"";position:fixed;top:0;left:0;right:0;height:var(--topzone);background:var(--paper);z-index:40;pointer-events:none}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.4}
@@ -527,7 +527,7 @@ function readFirebaseSetup(){
 let FIREBASE_CONFIG = readFirebaseSetup();
 const CAN_FETCH_CONFIG = /^https?:/.test(location.protocol);
 
-const APP_VERSION = '2026-11-10b';
+const APP_VERSION = '2026-11-10c';
 const KEY = 'sprayChart.v1';
 const BOXES = 12;
 const PCOL = ['var(--p1)','var(--p2)','var(--p3)','var(--p4)','var(--p5)'];
