@@ -84,7 +84,7 @@ html{scroll-padding-top:var(--topzone)}
 /* "homeapp" is set by a script in the page head when the app was opened from the home screen
    (iPadOS doesn't report the standard display-mode for these apps, so a CSS media query can't detect it) */
 /* iPadOS blurs roughly the top 40pt of a home-screen app; keep everything below that */
-:root.homeapp{--topzone:max(46px, calc(env(safe-area-inset-top,0px) + 40px))}
+:root.homeapp{--topzone:max(16px, calc(env(safe-area-inset-top,0px) + 12px))}
 .homeapp #edgeband{display:block;position:fixed;top:0;left:0;right:0;height:var(--topzone);background:var(--paper);z-index:2147483647}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.4}
@@ -562,7 +562,7 @@ function readFirebaseSetup(){
 let FIREBASE_CONFIG = readFirebaseSetup();
 const CAN_FETCH_CONFIG = /^https?:/.test(location.protocol);
 
-const APP_VERSION = '2026-11-10k';
+const APP_VERSION = '2026-11-10l';
 const KEY = 'sprayChart.v1';
 const BOXES = 12;
 const PCOL = ['var(--p1)','var(--p2)','var(--p3)','var(--p4)','var(--p5)'];
