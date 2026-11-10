@@ -74,7 +74,8 @@ html{scroll-padding-top:var(--topzone)}
 :root{--topzone:env(safe-area-inset-top,0px)}
 #edgeband{display:none}
 @media (display-mode: standalone){
-  :root{--topzone:max(14px, env(safe-area-inset-top,0px))}
+  /* iPadOS blurs roughly the top 40pt of a home-screen app; keep everything below that */
+  :root{--topzone:max(46px, calc(env(safe-area-inset-top,0px) + 40px))}
   #edgeband{display:block;position:fixed;top:0;left:0;right:0;height:var(--topzone);background:var(--paper);z-index:2147483647}
 }
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
@@ -458,16 +459,16 @@ header.top,main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-rig
 /* home-screen app: the header is a solid bar stuck to the top edge. iOS 26 looks for a fixed or sticky,
    full-width, solid-colored box at the top and, when it finds one, skips its blur over the top of the page. */
 @media (display-mode: standalone){
-  :root{padding-top:0}
-  header.top{position:sticky;top:0;z-index:30;background:var(--paper);max-width:none;margin:0;
-    padding-top:calc(var(--topzone) + 8px)!important;padding-bottom:8px;
+  :root{padding-top:var(--topzone)}
+  header.top{position:sticky;top:var(--topzone);z-index:30;background:var(--paper);max-width:none;margin:0;
+    padding-top:6px!important;padding-bottom:8px;
     padding-left:max(16px, calc((100% - 1100px)/2 + 16px), env(safe-area-inset-left,0px))!important;
     padding-right:max(16px, calc((100% - 1100px)/2 + 16px), env(safe-area-inset-right,0px))!important}
-  .fieldcol{top:calc(var(--hdr,60px) + 8px)!important}
-  html{scroll-padding-top:calc(var(--hdr,60px) + 8px)}
+  .fieldcol{top:calc(var(--topzone) + var(--hdr,60px) + 8px)!important}
+  html{scroll-padding-top:calc(var(--topzone) + var(--hdr,60px) + 8px)}
 }
 @media (display-mode: standalone) and (orientation:landscape) and (max-height:500px){
-  .fieldcol{max-height:calc(100dvh - var(--hdr,60px) - 14px)!important}
+  .fieldcol{max-height:calc(100dvh - var(--topzone) - var(--hdr,60px) - 14px)!important}
 }
 @media print{
   header.top .tabs,.order,.navbtn,.marktype,.primary,.iconbtn,.btnrow{display:none!important}
@@ -546,7 +547,7 @@ function readFirebaseSetup(){
 let FIREBASE_CONFIG = readFirebaseSetup();
 const CAN_FETCH_CONFIG = /^https?:/.test(location.protocol);
 
-const APP_VERSION = '2026-11-10e';
+const APP_VERSION = '2026-11-10f';
 const KEY = 'sprayChart.v1';
 const BOXES = 12;
 const PCOL = ['var(--p1)','var(--p2)','var(--p3)','var(--p4)','var(--p5)'];
