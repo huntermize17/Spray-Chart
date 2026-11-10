@@ -455,6 +455,20 @@ header.top,main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-rig
   .cgrid{gap:5px}
   .cgrid button{padding:5px 0;font-size:20px}
 }
+/* home-screen app: the header is a solid bar stuck to the top edge. iOS 26 looks for a fixed or sticky,
+   full-width, solid-colored box at the top and, when it finds one, skips its blur over the top of the page. */
+@media (display-mode: standalone){
+  :root{padding-top:0}
+  header.top{position:sticky;top:0;z-index:30;background:var(--paper);max-width:none;margin:0;
+    padding-top:calc(var(--topzone) + 8px)!important;padding-bottom:8px;
+    padding-left:max(16px, calc((100% - 1100px)/2 + 16px), env(safe-area-inset-left,0px))!important;
+    padding-right:max(16px, calc((100% - 1100px)/2 + 16px), env(safe-area-inset-right,0px))!important}
+  .fieldcol{top:calc(var(--hdr,60px) + 8px)!important}
+  html{scroll-padding-top:calc(var(--hdr,60px) + 8px)}
+}
+@media (display-mode: standalone) and (orientation:landscape) and (max-height:500px){
+  .fieldcol{max-height:calc(100dvh - var(--hdr,60px) - 14px)!important}
+}
 @media print{
   header.top .tabs,.order,.navbtn,.marktype,.primary,.iconbtn,.btnrow{display:none!important}
   body{background:#fff}
@@ -532,7 +546,7 @@ function readFirebaseSetup(){
 let FIREBASE_CONFIG = readFirebaseSetup();
 const CAN_FETCH_CONFIG = /^https?:/.test(location.protocol);
 
-const APP_VERSION = '2026-11-10d';
+const APP_VERSION = '2026-11-10e';
 const KEY = 'sprayChart.v1';
 const BOXES = 12;
 const PCOL = ['var(--p1)','var(--p2)','var(--p3)','var(--p4)','var(--p5)'];
@@ -827,6 +841,9 @@ function fitField(){
   const w = Math.max(240, Math.min(r.width, avail * 400/312));
   if(w < r.width - 1){ svg.style.width = w + 'px'; svg.style.margin = '0 auto'; }
 }
+// keep track of the header's height so things that stick below it line up
+(()=>{ const set = ()=>{ const h = document.querySelector('header.top'); if(h) document.documentElement.style.setProperty('--hdr', h.offsetHeight + 'px'); };
+  set(); if(window.ResizeObserver){ const h = document.querySelector('header.top'); if(h) new ResizeObserver(set).observe(h); } addEventListener('resize', set); })();
 let fitTimer;
 addEventListener('resize', ()=>{ clearTimeout(fitTimer); fitTimer = setTimeout(fitField, 120); });
 function boxBtn(a,kind,i){
