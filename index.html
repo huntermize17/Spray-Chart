@@ -122,6 +122,7 @@ main{max-width:1100px;margin:0 auto;padding:12px 16px 40px}
 .orderbar{display:flex;align-items:center;gap:6px}
 .orderbar .order{flex:1;min-width:0}
 .navbtn.sm{display:none;padding:4px 10px;font-size:22px;line-height:1;align-self:stretch;margin-bottom:10px}
+.order button .oline{display:inline-flex;gap:5px;align-items:baseline;font-style:normal}
 .order button i{font-style:normal;font-family:var(--head);font-weight:600;font-size:15px;opacity:.75}
 .inforow{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-bottom:16px}
 .inforow .scout{margin:0}
@@ -390,8 +391,16 @@ header.top,main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-rig
   header.top h1{font-size:24px}
   #teamSel,#sunBtn,.tabs button{padding-top:4px;padding-bottom:4px;font-size:16px}
   main{padding-top:8px}
-  .orderbar .order{padding:2px 0 6px}
-  .order button{padding:4px 9px}
+  .orderbar{gap:4px}
+  .orderbar .order{padding:2px 0 6px;gap:4px}
+  /* two short lines per hitter: batting spot and jersey number on top, name below */
+  .order button{padding:3px 6px;flex:1 1 0;min-width:72px;flex-direction:column;align-items:center;gap:0;line-height:1.1}
+  .order button .oline{display:flex;gap:6px;align-items:baseline;font-style:normal}
+  .order button b{font-size:15px}
+  .order button i{font-size:13px}
+  .order button span{width:100%;text-align:center}
+  .order button span{max-width:none;min-width:0;font-family:var(--head);font-weight:600;font-size:var(--chipfs,16px);letter-spacing:-.1px}
+  .navbtn.sm{padding:4px 7px}
   .order button b{font-size:17px}
   .navbtn.sm{display:block;margin-bottom:6px}
   .batter{display:none}
@@ -553,7 +562,7 @@ function readFirebaseSetup(){
 let FIREBASE_CONFIG = readFirebaseSetup();
 const CAN_FETCH_CONFIG = /^https?:/.test(location.protocol);
 
-const APP_VERSION = '2026-11-10g';
+const APP_VERSION = '2026-11-10k';
 const KEY = 'sprayChart.v1';
 const BOXES = 12;
 const PCOL = ['var(--p1)','var(--p2)','var(--p3)','var(--p4)','var(--p5)'];
@@ -621,6 +630,9 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const player = () => T().players.find(p=>p.id===T().cur) || null;
 const pName = (p,i) => p.name.trim() || `Batter ${i+1}`;
+// "Hunter Mize" -> "H. Mize" for the batting order strip; one-word names stay as they are
+const shortName = n => { const w = String(n).trim().split(/\s+/); return w.length < 2 || /^Batter \d+$/.test(n) ? n : w[0][0].toUpperCase() + '. ' + w.slice(1).join(' '); };
+
 const isHit = r => /^(1B|2B|3B|HR|H\b|SINGLE|DOUBLE|TRIPLE)/i.test((r||'').trim());
 
 function ensureCur(){
@@ -781,7 +793,7 @@ function typeIcon(t){ return `<svg viewBox="-14 -14 28 28">${shape(t,0,0,'',fals
 function renderChart(){
   ensureCur();
   const p = player(), idx = T().players.indexOf(p);
-  const order = T().players.map((q,i)=>`<button data-p="${q.id}" class="${q.id===T().cur?'on':''}"><b>${i+1}</b>${q.num?`<i>#${esc(q.num)}</i>`:''}<span>${esc(pName(q,i))}</span></button>`).join('');
+  const order = T().players.map((q,i)=>`<button data-p="${q.id}" class="${q.id===T().cur?'on':''}" title="${esc(pName(q,i))}${q.num?' #'+esc(q.num):''}"><em class="oline"><b>${i+1}</b>${q.num?`<i>#${esc(q.num)}</i>`:''}</em><span>${esc(shortName(pName(q,i)))}</span></button>`).join('');
   const meta = [p.pos && `Pos ${esc(p.pos)}`, p.bats && `Bats ${p.bats}`, p.throws && `Throws ${p.throws}`].filter(Boolean).join(', ');
 
   // spray tendencies by hit type and field direction
@@ -831,7 +843,15 @@ function renderChart(){
         </div>
       </section>
     </div>`;
-  requestAnimationFrame(fitField);
+  requestAnimationFrame(()=>{ fitOrder(); fitField(); });
+}
+// shrink the names in the batting order strip a little at a time until all nine fit without cutting off
+function fitOrder(){
+  const o = document.querySelector('.order'); if(!o) return;
+  o.style.removeProperty('--chipfs');
+  const nav = document.getElementById('next2'); if(!nav || !nav.offsetParent) return;   // phones scroll the strip instead
+  const cut = () => [...o.querySelectorAll('span')].some(x=>x.scrollWidth > x.clientWidth + 1);
+  for(let fs = 16; fs >= 12.5 && cut(); fs -= 0.5) o.style.setProperty('--chipfs', (fs - 0.5) + 'px');
 }
 // size the field so the whole thing (and the hit-type buttons) fits on screen without scrolling
 function fitField(){
@@ -852,7 +872,8 @@ function fitField(){
 (()=>{ const set = ()=>{ const h = document.querySelector('header.top'); if(h) document.documentElement.style.setProperty('--hdr', h.offsetHeight + 'px'); };
   set(); if(window.ResizeObserver){ const h = document.querySelector('header.top'); if(h) new ResizeObserver(set).observe(h); } addEventListener('resize', set); })();
 let fitTimer;
-addEventListener('resize', ()=>{ clearTimeout(fitTimer); fitTimer = setTimeout(fitField, 120); });
+addEventListener('resize', ()=>{ clearTimeout(fitTimer); fitTimer = setTimeout(()=>{ fitOrder(); fitField(); }, 120); });
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(()=>{ fitOrder(); fitField(); });
 function boxBtn(a,kind,i){
   const v = a[kind][i];
   const lbl = `${kind==='b'?'Ball':'Strike'} box ${i+1}${v?`, pitch ${v.c}${v.fl?', foul ball':v.sw?', swung at':''}`:', empty'}`;
