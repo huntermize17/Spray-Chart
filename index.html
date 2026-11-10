@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Spray Chart</title>
+<script>
+// opened from the home screen? (navigator.standalone is how iPhone/iPad report it)
+(function(){ try{
+  var home = window.navigator.standalone === true ||
+    ['standalone','fullscreen','minimal-ui'].some(function(m){ return matchMedia('(display-mode: '+m+')').matches; });
+  if(home) document.documentElement.classList.add('homeapp');
+}catch(e){} })();
+</script>
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <meta name="apple-mobile-web-app-title" content="Spray Chart">
@@ -73,11 +81,11 @@ html{scroll-padding-top:var(--topzone)}
    (so no pointer-events:none). #edgeband is that element; it only shows in the installed app. */
 :root{--topzone:env(safe-area-inset-top,0px)}
 #edgeband{display:none}
-@media (display-mode: standalone){
-  /* iPadOS blurs roughly the top 40pt of a home-screen app; keep everything below that */
-  :root{--topzone:max(46px, calc(env(safe-area-inset-top,0px) + 40px))}
-  #edgeband{display:block;position:fixed;top:0;left:0;right:0;height:var(--topzone);background:var(--paper);z-index:2147483647}
-}
+/* "homeapp" is set by a script in the page head when the app was opened from the home screen
+   (iPadOS doesn't report the standard display-mode for these apps, so a CSS media query can't detect it) */
+/* iPadOS blurs roughly the top 40pt of a home-screen app; keep everything below that */
+:root.homeapp{--topzone:max(46px, calc(env(safe-area-inset-top,0px) + 40px))}
+.homeapp #edgeband{display:block;position:fixed;top:0;left:0;right:0;height:var(--topzone);background:var(--paper);z-index:2147483647}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.4}
 button,input,select,textarea{font:inherit;color:inherit}
@@ -458,17 +466,15 @@ header.top,main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-rig
 }
 /* home-screen app: the header is a solid bar stuck to the top edge. iOS 26 looks for a fixed or sticky,
    full-width, solid-colored box at the top and, when it finds one, skips its blur over the top of the page. */
-@media (display-mode: standalone){
-  :root{padding-top:var(--topzone)}
-  header.top{position:sticky;top:var(--topzone);z-index:30;background:var(--paper);max-width:none;margin:0;
+  :root.homeapp{padding-top:var(--topzone)}
+  .homeapp header.top{position:sticky;top:var(--topzone);z-index:30;background:var(--paper);max-width:none;margin:0;
     padding-top:6px!important;padding-bottom:8px;
     padding-left:max(16px, calc((100% - 1100px)/2 + 16px), env(safe-area-inset-left,0px))!important;
     padding-right:max(16px, calc((100% - 1100px)/2 + 16px), env(safe-area-inset-right,0px))!important}
-  .fieldcol{top:calc(var(--topzone) + var(--hdr,60px) + 8px)!important}
-  html{scroll-padding-top:calc(var(--topzone) + var(--hdr,60px) + 8px)}
-}
-@media (display-mode: standalone) and (orientation:landscape) and (max-height:500px){
-  .fieldcol{max-height:calc(100dvh - var(--topzone) - var(--hdr,60px) - 14px)!important}
+  .homeapp .fieldcol{top:calc(var(--topzone) + var(--hdr,60px) + 8px)!important}
+  html.homeapp{scroll-padding-top:calc(var(--topzone) + var(--hdr,60px) + 8px)}
+@media (orientation:landscape) and (max-height:500px){
+  .homeapp .fieldcol{max-height:calc(100dvh - var(--topzone) - var(--hdr,60px) - 14px)!important}
 }
 @media print{
   header.top .tabs,.order,.navbtn,.marktype,.primary,.iconbtn,.btnrow{display:none!important}
@@ -547,7 +553,7 @@ function readFirebaseSetup(){
 let FIREBASE_CONFIG = readFirebaseSetup();
 const CAN_FETCH_CONFIG = /^https?:/.test(location.protocol);
 
-const APP_VERSION = '2026-11-10f';
+const APP_VERSION = '2026-11-10g';
 const KEY = 'sprayChart.v1';
 const BOXES = 12;
 const PCOL = ['var(--p1)','var(--p2)','var(--p3)','var(--p4)','var(--p5)'];
@@ -1008,7 +1014,7 @@ function renderBackup(){
       <p class="hint"><b>Add teams</b> keeps what is on this device and brings in the backup's teams, which is good for combining two phones. <b>Replace everything</b> wipes this device and puts the backup back exactly as it was, including the pitch key.</p>
       <input type="file" id="impFile" accept=".json,application/json" hidden>
     </div>
-    <p class="hint" style="text-align:center;margin-top:16px">App version ${APP_VERSION}</p>
+    <p class="hint" style="text-align:center;margin-top:16px">App version ${APP_VERSION}${document.documentElement.classList.contains('homeapp')?' · home screen app':''}</p>
     <div class="panel" style="margin-top:16px">
       <h2 class="bkh">Keep data from getting cleared</h2>
       <p class="hint" style="margin-top:0">Charts live in this browser on this device. On iPhone and iPad, Safari can clear website data if the site is not opened for a few weeks. Add the app to your Home Screen (Share, then <b>Add to Home Screen</b>) and open it from there to keep your data. Clearing Safari history or website data also erases it, so back up often.</p>
