@@ -563,7 +563,7 @@ function readFirebaseSetup(){
 let FIREBASE_CONFIG = readFirebaseSetup();
 const CAN_FETCH_CONFIG = /^https?:/.test(location.protocol);
 
-const APP_VERSION = '2026-11-10m';
+const APP_VERSION = '2026-11-17a';
 const KEY = 'sprayChart.v1';
 const BOXES = 12;
 const PCOL = ['var(--p1)','var(--p2)','var(--p3)','var(--p4)','var(--p5)'];
@@ -727,8 +727,11 @@ document.addEventListener('click', e=>{
 const isK = r => /^(K|SO)/i.test(String(r||'').trim());
 function swingMiss(p){
   let swings = 0, misses = 0, abs = 0;
-  p.abs.forEach(a=>{
-    if(a.imp || a.noSeq || !sinceFouls(a)) return;
+  // once a hitter has a foul ball charted, every at-bat from that one on counts (fouls were being tracked by then)
+  const firstFoul = p.abs.findIndex(a=>!a.imp && a.s.some(x=>x && x.fl));
+  p.abs.forEach((a,i)=>{
+    if(a.imp || a.noSeq) return;
+    if(!((firstFoul>=0 && i>=firstFoul) || (a.ts && a.ts>=FOUL_START))) return;
     const ps = [...a.b, ...a.s].filter(Boolean);
     if(!ps.length) return;
     abs++;
