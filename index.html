@@ -563,7 +563,7 @@ function readFirebaseSetup(){
 let FIREBASE_CONFIG = readFirebaseSetup();
 const CAN_FETCH_CONFIG = /^https?:/.test(location.protocol);
 
-const APP_VERSION = '2026-11-17a';
+const APP_VERSION = '2026-11-17b';
 const KEY = 'sprayChart.v1';
 const BOXES = 12;
 const PCOL = ['var(--p1)','var(--p2)','var(--p3)','var(--p4)','var(--p5)'];
@@ -575,10 +575,7 @@ function blankPlayer(){ return {id:uid(),name:'',num:'',pos:'',bats:'',throws:''
 const isKL = r => /^(KL|ꓘ)/i.test(String(r||'').trim());
 const resHTML = r => isKL(r) ? `<span class="bk">K</span>${esc(String(r).trim().replace(/^(KL|ꓘ)/i,''))}` : esc(r||'');
 function blankAB(){ return {id:uid(),b:Array(BOXES).fill(null),s:Array(BOXES).fill(null),result:'',mark:null,ts:Date.now()}; }
-// the Foul ball choice was added Nov 3, 2026; swing and miss only counts at-bats charted since then
-const FOUL_START = new Date(2026, 10, 3).getTime();
-// at-bats made before dates were recorded can't be dated, but one with a foul ball entered must be newer
-const sinceFouls = a => (a.ts && a.ts >= FOUL_START) || a.s.some(x=>x && x.fl);
+
 function blankTeam(name=''){ return {id:uid(),name,players:Array.from({length:9},blankPlayer),cur:null,curAB:null}; }
 function defaults(){
   const t = blankTeam();
@@ -727,11 +724,9 @@ document.addEventListener('click', e=>{
 const isK = r => /^(K|SO)/i.test(String(r||'').trim());
 function swingMiss(p){
   let swings = 0, misses = 0, abs = 0;
-  // once a hitter has a foul ball charted, every at-bat from that one on counts (fouls were being tracked by then)
-  const firstFoul = p.abs.findIndex(a=>!a.imp && a.s.some(x=>x && x.fl));
-  p.abs.forEach((a,i)=>{
+  // every at-bat charted in the app counts (photo imports are left out: their pitch order isn't known)
+  p.abs.forEach(a=>{
     if(a.imp || a.noSeq) return;
-    if(!((firstFoul>=0 && i>=firstFoul) || (a.ts && a.ts>=FOUL_START))) return;
     const ps = [...a.b, ...a.s].filter(Boolean);
     if(!ps.length) return;
     abs++;
