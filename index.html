@@ -563,7 +563,7 @@ function readFirebaseSetup(){
 let FIREBASE_CONFIG = readFirebaseSetup();
 const CAN_FETCH_CONFIG = /^https?:/.test(location.protocol);
 
-const APP_VERSION = '2026-11-17b';
+const APP_VERSION = '2026-11-17g';
 const KEY = 'sprayChart.v1';
 const BOXES = 12;
 const PCOL = ['var(--p1)','var(--p2)','var(--p3)','var(--p4)','var(--p5)'];
@@ -722,8 +722,29 @@ document.addEventListener('click', e=>{
 // A "swung at" strike that is the last pitch of the at-bat is the ball he put in play, so it is not a miss,
 // unless the at-bat ended in a strikeout (then he swung through strike three).
 const isK = r => /^(K|SO)/i.test(String(r||'').trim());
+// Batting line from the written results, using standard scoring rules.
+// Plate appearances = every at-bat with a result. Walks, HBP, sacrifices and catcher's interference
+// are not official at-bats. Reaching on an error or a fielder's choice is an at-bat without a hit.
+function battingLine(p){
+  let pa=0, ab=0, h=0, tb=0, bb=0, hbp=0, sf=0;
+  p.abs.forEach(a=>{
+    const r = String(a.result||'').trim().toUpperCase().replace(/\s+/g,' ');
+    if(!r) return;
+    pa++;
+    if(/^(BB|IBB|IW|W\b)/.test(r)){ bb++; return; }
+    if(/^(HBP|HP)/.test(r)){ hbp++; return; }
+    if(/^(SF|SAC ?F)/.test(r)){ sf++; return; }
+    if(/^(SAC|SH)/.test(r)) return;
+    if(/^(CI|INT)/.test(r)) return;
+    ab++;
+    const m = r.match(/^(1B|2B|3B|HR)/);
+    if(m){ h++; tb += {'1B':1,'2B':2,'3B':3,'HR':4}[m[1]]; }
+  });
+  const fmt = (n,d) => { if(!d) return '---'; const v = n/d; return v>=1 ? v.toFixed(3) : v.toFixed(3).replace(/^0/,''); };
+  return {pa, ab, h, tb, bb, hbp, sf, avg:fmt(h,ab), obp:fmt(h+bb+hbp, ab+bb+hbp+sf), slg:fmt(tb,ab)};
+}
 function swingMiss(p){
-  let swings = 0, misses = 0, abs = 0;
+  let swings = 0, misses = 0, abs = 0; const byPitch = [0,0,0,0,0];
   // every at-bat charted in the app counts (photo imports are left out: their pitch order isn't known)
   p.abs.forEach(a=>{
     if(a.imp || a.noSeq) return;
@@ -736,10 +757,10 @@ function swingMiss(p){
       swings++;
       if(x.fl) return;
       if(x.q===lastQ && !isK(a.result)) return;   // contact on the final pitch
-      misses++;
+      misses++; if(x.c>=1 && x.c<=5) byPitch[x.c-1]++;
     });
   });
-  return {swings, misses, abs, pct: swings ? Math.round(100*misses/swings) : null};
+  return {swings, misses, abs, byPitch, pct: swings ? Math.round(100*misses/swings) : null};
 }
 function firstPitch(p){
   let sw = 0, tk = 0, unk = 0;
@@ -2313,7 +2334,7 @@ async function exportPDF(btn){
     }
 
     function abGrid(p,from,top){
-      const cols=3, rows=16, cw=(W-2*M)/cols, rh=(H-M-top)/rows, bw=9, bh=Math.min(10,(rh-3)/2);
+      const cols=3, rows=Math.min(16, Math.floor((H-M-top)/21)), cw=(W-2*M)/cols, rh=(H-M-top)/rows, bw=9, bh=Math.min(10,(rh-3)/2);
       for(let k=0;k<cols*rows && from+k<p.abs.length;k++){
         const a=p.abs[from+k], c=Math.floor(k/rows), r=k%rows;
         const x=M+c*cw, y=top+r*rh;
@@ -2383,22 +2404,37 @@ async function exportPDF(btn){
       ty+=8;
       // tally
       text('Pitches seen',tx,ty,12,bold); ty+=16;
-      const colX=[tx, tx+tw-150, tx+tw-120, tx+tw-90, tx+tw-58, tx+tw-26];
-      ['Pitch','Balls','Strikes','Swung','Foul','Total'].forEach((h,k)=> k? ctext(h,colX[k]+10,ty,8,bold,k===1?C.ball:k===2?C.strike:C.muted) : text(h,tx,ty,8,bold,C.muted));
+      // six number columns, evenly spaced to the right of the pitch names
+      const nameW = 58, cw = (tw - nameW) / 6, cx = j => tx + nameW + cw*j + cw/2;
+      const smP = swingMiss(p);
+      ['Balls','Strikes','Swung','Foul','Miss','Total'].forEach((h,j)=>ctext(h, cx(j), ty, 7, bold, j===0?C.ball:j===1||j===4?C.strike:C.muted));
+      text('Pitch',tx,ty,7.5,bold,C.muted);
       ty+=12;
       const t = Array.from({length:5},()=>({b:0,s:0,w:0,f:0}));
       p.abs.forEach(a=>{ a.b.forEach(x=>x&&t[x.c-1].b++); a.s.forEach(x=>{ if(x){ t[x.c-1].s++; if(x.sw) t[x.c-1].w++; if(x.fl) t[x.c-1].f++; } }); });
+      const rowVals = k => [t[k].b, t[k].s, t[k].w, t[k].f, smP.byPitch[k], t[k].b+t[k].s];
       S.pitches.forEach((nm,k)=>{
         line(tx,ty-3,W-M,ty-3);
         rect(tx,ty,11,11,{color:C.p[k]}); ctext(k+1,tx+5.5,ty+2,8,bold,C.white);
-        text(fit(nm,reg,9.5,colX[1]-tx-24),tx+16,ty+1,9.5);
-        [t[k].b,t[k].s,t[k].w,t[k].f,t[k].b+t[k].s].forEach((v,j)=>ctext(v,colX[j+1]+10,ty+1,9.5));
-        ty+=14;
+        text(fit(nm,reg,9.5,nameW-18),tx+16,ty+1,9.5);
+        rowVals(k).forEach((v,j)=>ctext(v,cx(j),ty+1,9.5));
+        ty+=13;
       });
+      // totals for all pitches
+      line(tx,ty-3,W-M,ty-3,C.ink,1);
+      text('All pitches',tx,ty+1,9.5,bold);
+      [0,1,2,3,4,5].map(j=>[0,1,2,3,4].reduce((sum,k)=>sum+rowVals(k)[j],0)).forEach((v,j)=>ctext(v,cx(j),ty+1,9.5,bold));
+      ty+=13;
       line(tx,ty-3,W-M,ty-3);
-      const hits = p.abs.filter(a=>isHit(a.result)).length;
-      text(`${p.abs.length} at-bat${p.abs.length===1?'':'s'}, ${hits} hit${hits===1?'':'s'}`,tx,ty+3,9.5,reg,C.muted);
-      ty+=16;
+      const bl = battingLine(p);
+      // box-score style: PA, AB, H, AVG, OBP, SLG across the column, labels over the numbers
+      const stats = [['PA',String(bl.pa)],['AB',String(bl.ab)],['H',String(bl.h)],['AVG',bl.avg],['OBP',bl.obp],['SLG',bl.slg]];
+      const scw = tw / stats.length;
+      stats.forEach(([l,v],j)=>{
+        ctext(l, tx + scw*j + scw/2, ty+2, 7.5, bold, C.muted);
+        ctext(v, tx + scw*j + scw/2, ty+12, 12.5, bold, C.ink);
+      });
+      ty+=30;
       const sm = swingMiss(p);
       text('Swing & miss:',tx,ty+3,10.5,bold);
       const smx = tx + bold.widthOfTextAtSize('Swing & miss:',10.5) + 5;
@@ -2420,13 +2456,14 @@ async function exportPDF(btn){
       const words = clean(p.notes).split(/\s+/).filter(Boolean); let ln='', lines=[];
       words.forEach(w=>{ const tryl = ln?ln+' '+w:w; if(reg.widthOfTextAtSize(tryl,9.5)>tw){ lines.push(ln); ln=w; } else ln=tryl; });
       if(ln) lines.push(ln);
-      const maxL = Math.floor((fy+312*sc+20-ty)/12);
+      const maxL = 7;
       if(lines.length>maxL){ lines=lines.slice(0,maxL); lines[maxL-1]=fit(lines[maxL-1],reg,9.5,tw-12)+'...'; }
-      if(!lines.length) for(let k=0;k<Math.min(maxL,5);k++) line(tx,ty+k*16+12,W-M,ty+k*16+12);
+      if(!lines.length) for(let k=0;k<2;k++) line(tx,ty+k*16+12,W-M,ty+k*16+12);
       lines.forEach((l,k)=>text(l,tx,ty+k*12,9.5));
+      const notesEnd = ty + (lines.length ? lines.length*12 : 2*16+4);
 
-      // at-bats
-      const gTop = fy+312*sc+30;
+      // at-bats start below whichever is lower: the field or the right-hand column
+      const gTop = Math.max(fy+312*sc+30, notesEnd+18);
       line(M,gTop-8,W-M,gTop-8,C.ink,1.2);
       let next = abGrid(p,0,gTop);
       while(next < p.abs.length){ pageHeader(p,i,true); next = abGrid(p,next,M+62); }
