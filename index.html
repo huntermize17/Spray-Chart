@@ -84,8 +84,8 @@ html{scroll-padding-top:var(--topzone)}
 /* "homeapp" is set by a script in the page head when the app was opened from the home screen
    (iPadOS doesn't report the standard display-mode for these apps, so a CSS media query can't detect it) */
 /* iPadOS blurs roughly the top 40pt of a home-screen app; keep everything below that */
-/* at 11px the iPad's blur still reached the header; 16px looked clear, so 22px leaves a small margin */
-:root.homeapp{--topzone:max(22px, calc(env(safe-area-inset-top,0px) + 18px))}
+/* the iPad's blur reaches past the top band; 30px keeps the header below it */
+:root.homeapp{--topzone:max(30px, calc(env(safe-area-inset-top,0px) + 26px))}
 .homeapp #edgeband{display:block;position:fixed;top:0;left:0;right:0;height:var(--topzone);background:var(--paper);z-index:2147483647}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.4}
@@ -566,7 +566,7 @@ function readFirebaseSetup(){
 let FIREBASE_CONFIG = readFirebaseSetup();
 const CAN_FETCH_CONFIG = /^https?:/.test(location.protocol);
 
-const APP_VERSION = '2026-11-18c';
+const APP_VERSION = '2026-11-18d';
 const KEY = 'sprayChart.v1';
 const BOXES = 12;
 const PCOL = ['var(--p1)','var(--p2)','var(--p3)','var(--p4)','var(--p5)'];
