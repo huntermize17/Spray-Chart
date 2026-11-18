@@ -333,7 +333,10 @@ body.sorting{user-select:none;-webkit-user-select:none}
 #tabBackup{position:relative}
 #tabBackup[data-sync="synced"]::after,#tabBackup[data-sync="syncing"]::after,#tabBackup[data-sync="offline"]::after,#tabBackup[data-sync="error"]::after{content:"";position:absolute;top:5px;right:4px;width:8px;height:8px;border-radius:50%;background:#2F8F5B;box-shadow:0 0 0 1.5px var(--card)}
 #tabBackup[data-sync="syncing"]::after{background:#F2C200}
-#tabBackup[data-sync="offline"]::after{background:#8A93A6}
+#tabBackup[data-sync="offline"]::after,#tabBackup[data-sync="waiting"]::after{background:#8A93A6}
+#tabBackup[data-sync="waiting"]::after{content:"";position:absolute;top:5px;right:4px;width:8px;height:8px;border-radius:50%;box-shadow:0 0 0 1.5px var(--card)}
+#netpill{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(10px + env(safe-area-inset-bottom));z-index:60;max-width:calc(100% - 32px);padding:7px 14px;border-radius:999px;background:#2B3242;color:#fff;font:600 14px/1.25 Barlow,system-ui,sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.25);pointer-events:none;text-align:center}
+#netpill[hidden]{display:none}
 #tabBackup[data-sync="error"]::after{background:#C8102E}
 .histlist{margin-top:10px;border-top:1px solid var(--line)}
 .histrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
@@ -566,7 +569,7 @@ function readFirebaseSetup(){
 let FIREBASE_CONFIG = readFirebaseSetup();
 const CAN_FETCH_CONFIG = /^https?:/.test(location.protocol);
 
-const APP_VERSION = '2026-11-18d';
+const APP_VERSION = '2026-11-18e';
 const KEY = 'sprayChart.v1';
 const BOXES = 12;
 const PCOL = ['var(--p1)','var(--p2)','var(--p3)','var(--p4)','var(--p5)'];
@@ -621,9 +624,14 @@ function stamp(){
 }
 function touch(t){ t.updatedAt = Date.now(); delete t._sig; }
 function forgetTeam(id){ S.deletedTeams = [...new Set([...(S.deletedTeams||[]), id])]; }
+let saveWarned = false;
 function save(){
   stamp();
-  try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){}
+  try{ localStorage.setItem(KEY, JSON.stringify(S)); saveWarned = false; }
+  catch(e){
+    console.error(e);
+    if(!saveWarned){ saveWarned = true; setTimeout(()=>alert('This device could not save your last change. Its storage may be full.\n\nGo to the Backup tab and save a backup file now, then delete teams you no longer need.'), 0); }
+  }
   if(typeof cloudChanged==='function') cloudChanged();
 }
 
@@ -1096,9 +1104,26 @@ const DEVICE = (()=>{ try{ let d=localStorage.getItem('sprayChart.device'); if(!
 const cloud = {ready:false, loading:!!FIREBASE_CONFIG || CAN_FETCH_CONFIG, user:null, status:'off', err:'', firstSnap:false,
   settingsLoaded:false, settingsAt:0, remoteAt:{}, remoteData:{}, lastSync:0, timer:null, unsub:[], hist:null};
 const localDay = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+// updatedAt of each team that the cloud server has confirmed; anything newer is still waiting to upload
+const SYNC_KEY = 'sprayChart.synced';
+let confirmed = {}; try{ confirmed = JSON.parse(localStorage.getItem(SYNC_KEY)) || {}; }catch(e){}
+function confirmTeam(id, at){
+  if((confirmed[id]||0) >= at) return;
+  confirmed[id] = at; try{ localStorage.setItem(SYNC_KEY, JSON.stringify(confirmed)); }catch(e){}
+}
+const everSynced = () => { try{ return !!localStorage.getItem('sprayChart.everSynced'); }catch(e){ return false; } };
+function pendingTeams(){
+  if(!cloud.user) return [];
+  return S.teams.filter(t=> (t.updatedAt||0) > (confirmed[t.id]||0) && !isEmptyTeam(t));
+}
 const isEmptyTeam = t => !t.name.trim() && t.players.every(p=>!p.name.trim() && !p.num && !p.abs.length);
 
 async function cloudInit(){
+  if(cloud.ready || cloud.initing) return;
+  cloud.initing = true;
+  try{ await cloudInitInner(); } finally{ cloud.initing = false; }
+}
+async function cloudInitInner(){
   if(!FIREBASE_CONFIG && CAN_FETCH_CONFIG){
     try{
       const r = await fetch('firebase-config.txt', {cache:'no-cache'});
@@ -1127,7 +1152,7 @@ async function cloudInit(){
     });
   }catch(e){
     console.error(e); cloud.loading = false; cloud.status = 'error';
-    cloud.err = 'Could not load cloud sync. Check your internet connection, then reload the page.'; updateSyncUI();
+    cloud.err = 'Could not load cloud sync (no signal?). Your charts are still saved on this device. Sync starts on its own when the signal comes back.'; updateSyncUI();
   }
 }
 function authMsg(e){
@@ -1168,7 +1193,7 @@ function startSync(){
   cloud.unsub.push(F.onSnapshot(F.doc(cloud.db,'users',uidc,'meta','settings'), {includeMetadataChanges:true}, applySettings, snapErr));
   clearTimeout(cloud.waitTimer);
   cloud.waitTimer = setTimeout(()=>{
-    if(cloud.user && !cloud.firstSnap && navigator.onLine){
+    if(cloud.user && !cloud.firstSnap && navigator.onLine && !everSynced()){
       cloud.status = 'error';
       cloud.err = "Signed in, but can't reach the cloud database. In Firebase, check that Firestore Database has been created (Build, Firestore Database) and that the rules were published.";
       updateSyncUI();
@@ -1200,6 +1225,7 @@ function applyRemote(snap){
     const r = d.data(), id = d.id; seen.add(id);
     if(d.metadata.hasPendingWrites) return;          // our own write coming back
     cloud.remoteAt[id] = Math.max(cloud.remoteAt[id]||0, r.updatedAt||0);
+    if(!snap.metadata.fromCache) confirmTeam(id, r.updatedAt||0);
     if(r.deleted) delete cloud.remoteData[id]; else cloud.remoteData[id] = r;
     const i = S.teams.findIndex(t=>t.id===id), loc = S.teams[i];
     if(r.deleted){ if(loc && (loc.updatedAt||0) <= (r.updatedAt||0)){ S.teams.splice(i,1); changed = true; } return; }
@@ -1219,7 +1245,9 @@ function applyRemote(snap){
   if(changed){ if(!S.teams.length) S.teams.push(blankTeam()); T(); save(); rerenderSoon(); }
   clearTimeout(cloud.waitTimer);
   if(cloud.status==='error' && /reach the cloud database/.test(cloud.err)) cloud.err = '';
-  cloud.status = 'synced'; cloud.lastSync = Date.now();
+  if(!snap.metadata.fromCache){ try{ localStorage.setItem('sprayChart.everSynced','1'); }catch(e){} }
+  if(cloud.status!=='error') cloud.status = 'synced';
+  cloud.lastSync = Date.now();
   scheduleUpload(0); updateSyncUI();
 }
 function applySettings(d){
@@ -1254,8 +1282,12 @@ async function upload(){
       const prev = cloud.remoteData[t.id];
       if(prev) keepHistory(t.id, prev);
       const data = {name:t.name, data:JSON.stringify(t.players), updatedAt:t.updatedAt, deleted:false, device:DEVICE};
-      cloud.remoteAt[t.id] = t.updatedAt; cloud.remoteData[t.id] = data;
-      ops.push(F.setDoc(F.doc(cloud.db,'users',uidc,'teams',t.id), data));
+      const id = t.id, at = t.updatedAt, before = cloud.remoteAt[id];
+      cloud.remoteAt[id] = at; cloud.remoteData[id] = data;
+      // the promise finishes only when the server has it; offline, Firestore keeps it queued on the device
+      ops.push(F.setDoc(F.doc(cloud.db,'users',uidc,'teams',id), data)
+        .then(()=>{ confirmTeam(id, at); updateSyncUI(); })
+        .catch(e=>{ if(cloud.remoteAt[id]===at) cloud.remoteAt[id] = before||0; throw e; }));
     }
   }
   const dels = S.deletedTeams || [];
@@ -1275,7 +1307,10 @@ async function upload(){
   if(!ops.length){ if(cloud.status!=='error'){ cloud.status='synced'; } updateSyncUI(); return; }
   cloud.status = 'syncing'; updateSyncUI();
   try{ await Promise.all(ops); cloud.status = 'synced'; cloud.lastSync = Date.now(); cloud.err=''; }
-  catch(e){ cloud.status = 'error'; cloud.err = e.code==='permission-denied' ? 'The cloud database refused the save. Check the Firestore rules in Firebase.' : `Could not save to the cloud (${e.code||e.message}).`; }
+  catch(e){
+    if(e.code==='permission-denied'){ cloud.status = 'error'; cloud.err = 'The cloud database refused the save. Check the Firestore rules in Firebase.'; }
+    else { cloud.status = 'synced'; cloud.err = ''; clearTimeout(cloud.retry); cloud.retry = setTimeout(()=>scheduleUpload(0), 20000); }
+  }
   updateSyncUI();
 }
 async function loadHistory(){
@@ -1307,20 +1342,40 @@ function rerenderSoon(){
   const y = scrollY; render(); scrollTo(0,y);
 }
 document.addEventListener('focusout', ()=>setTimeout(()=>{ if(renderWaiting && !pending){ renderWaiting=false; rerenderSoon(); } },50));
-window.addEventListener('online', ()=>{ updateSyncUI(); scheduleUpload(0); });
+function reconnect(){
+  if(!cloud.ready && FIREBASE_CONFIG) cloudInit();
+  else if(!cloud.ready && !FIREBASE_CONFIG && CAN_FETCH_CONFIG && !FIREBASE_PROBLEM) cloudInit();
+  if(cloud.status==='error' && !/refused|not found|authorized domains/i.test(cloud.err)){ cloud.status = 'synced'; cloud.err = ''; }
+  updateSyncUI(); scheduleUpload(0);
+}
+window.addEventListener('online', reconnect);
 window.addEventListener('offline', updateSyncUI);
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') reconnect(); });
+// keep the "waiting to sync" note fresh and nudge stuck uploads
+setInterval(()=>{ updateSyncUI(); if(pendingTeams().length && cloud.firstSnap) scheduleUpload(0); else if(!cloud.ready && navigator.onLine && FIREBASE_CONFIG) cloudInit(); }, 15000);
 
 function syncState(){
   if(!FIREBASE_CONFIG) return FIREBASE_PROBLEM ? 'error' : 'none';
   if(!cloud.user) return 'out';
   if(cloud.status==='error') return 'error';
   if(!navigator.onLine) return 'offline';
+  if(pendingSince && Date.now()-pendingSince > 12000) return 'waiting';
   if(!cloud.firstSnap || cloud.status==='syncing') return 'syncing';
   return 'synced';
 }
+let pendingSince = 0;
 function updateSyncUI(){
   const st = syncState(), tb = $('#tabBackup');
   if(tb) tb.dataset.sync = st;
+  const pend = pendingTeams().length;
+  if(!pend) pendingSince = 0; else if(!pendingSince) pendingSince = Date.now();
+  let pill = document.getElementById('netpill');
+  if(!pill){ pill = document.createElement('div'); pill.id = 'netpill'; pill.setAttribute('role','status'); document.body.appendChild(pill); }
+  let txt = '';
+  const where = /iPad/.test(navigator.userAgent) || (navigator.maxTouchPoints>1 && /Mac/.test(navigator.platform)) ? 'iPad' : /iPhone/.test(navigator.userAgent) ? 'iPhone' : 'device';
+  if(!navigator.onLine) txt = cloud.user && pend ? `No signal. Saved on this ${where}. ${pend} team${pend===1?'':'s'} will sync when the signal is back.` : `No signal. Every tap is saved on this ${where}.`;
+  else if(cloud.user && pend && Date.now()-pendingSince > 12000) txt = `Weak signal. Saved on this ${where}. ${pend} team${pend===1?'':'s'} waiting to sync.`;
+  pill.textContent = txt; pill.hidden = !txt;
   const el = $('#syncPanel');
   if(el){ const a=document.activeElement; if(!(a && el.contains(a) && a.tagName==='INPUT')) el.innerHTML = syncPanelHTML(); }
 }
@@ -1343,6 +1398,7 @@ function syncPanelHTML(){
   const st = syncState();
   const msg = {synced:`Everything is saved to the cloud${cloud.lastSync?` (checked ${new Date(cloud.lastSync).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})})`:''}.`,
     syncing:'Saving to the cloud...', offline:'No signal. Changes are saved on this device and upload automatically when you are back online.',
+    waiting:'Changes are saved on this device. Waiting for a good signal to upload them.',
     error: cloud.err || 'Something went wrong with sync.'}[st];
   let hist = '';
   if(cloud.hist==='loading') hist = `<p class="hint">Loading history...</p>`;
@@ -1362,9 +1418,13 @@ function syncPanelHTML(){
     </div>
     ${hist}
     <p class="hint">Cloud history keeps a copy of each team from the start of every day it changed, so you can undo a mistake even after it synced to all your devices.</p>
-    <p class="hint syncinfo">Project: ${esc(FIREBASE_CONFIG.projectId)}. Connected to database: ${cloud.firstSnap?'yes':'not yet'}. Teams in cloud: ${Object.values(cloud.remoteData).length}. Online: ${navigator.onLine?'yes':'no'}.</p>`;
+    <p class="hint syncinfo">Project: ${esc(FIREBASE_CONFIG.projectId)}. Connected to database: ${cloud.firstSnap?'yes':'not yet'}. Teams in cloud: ${Object.values(cloud.remoteData).length}. Waiting to upload: ${pendingTeams().length}. Online: ${navigator.onLine?'yes':'no'}. Works offline: ${navigator.serviceWorker && navigator.serviceWorker.controller?'yes':'not yet (open once with signal)'}.</p>`;
 }
 cloudInit();
+// sw.js (next to index.html) keeps a copy of the app on the device so it opens with no signal
+if('serviceWorker' in navigator && location.protocol==='https:'){
+  navigator.serviceWorker.register('sw.js').then(()=>navigator.serviceWorker.ready).then(()=>updateSyncUI()).catch(e=>console.warn('offline copy not set up', e));
+}
 
 function applyTheme(){
   applyZoom();
