@@ -163,7 +163,8 @@ main{max-width:1100px;margin:0 auto;padding:12px 16px 40px}
 .dot{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:4px;color:#fff;font-weight:600;font-size:13px;margin-right:6px;vertical-align:-4px}
 
 /* at-bats */
-.abhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.abhead{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.abhead > span{flex-wrap:wrap;justify-content:flex-end}
 .abhead h3{font-family:var(--head);font-size:22px;margin:0}
 .primary{border:0;background:var(--ink);color:var(--paper);border-radius:6px;padding:9px 14px;font-family:var(--head);font-weight:600;font-size:18px}
 .ab{border:1.5px solid var(--line);border-radius:8px;padding:8px;margin-bottom:8px;background:var(--card)}
@@ -233,6 +234,8 @@ body.sorting{user-select:none;-webkit-user-select:none}
 .sc-fp .sclab{min-width:72px}
 .tl.smr{flex-basis:100%;padding-left:88px;margin-top:-4px}
 .tl.smr b{color:var(--strike)}
+.tl.smr{white-space:normal}
+.tl.smr .t2{display:inline-block;white-space:nowrap;margin-left:14px}
 .tl.smr small{margin-left:6px;color:var(--muted);font-size:13px}
 .unk{display:block;color:#C98300;font-weight:600;white-space:normal;margin-top:2px}
 .firstq{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;font-size:14px;font-weight:600}
@@ -563,7 +566,7 @@ function readFirebaseSetup(){
 let FIREBASE_CONFIG = readFirebaseSetup();
 const CAN_FETCH_CONFIG = /^https?:/.test(location.protocol);
 
-const APP_VERSION = '2026-11-17g';
+const APP_VERSION = '2026-11-18a';
 const KEY = 'sprayChart.v1';
 const BOXES = 12;
 const PCOL = ['var(--p1)','var(--p2)','var(--p3)','var(--p4)','var(--p5)'];
@@ -669,7 +672,7 @@ function tendencies(p){
 const pct = (v,t) => t ? Math.round(100*v/t)+'%' : '';
 const RUNNER = [['red','Red','#D0192B'],['yellow','Yellow','#F2C200'],['green','Green','#1E9A4B']];
 function scoutBox(p){
-  const fp = firstPitch(p), sm = swingMiss(p);
+  const fp = firstPitch(p), sm = swingMiss(p), t2 = twoStrike(p);
   const cnt = (k,label) => `<span class="cnt"><span>${label}</span><button class="cbtn" data-cnt="${k}" data-d="-1" aria-label="${label} minus one" ${(p[k]||0)?'':'disabled'}>−</button><b>${p[k]||0}</b><button class="cbtn" data-cnt="${k}" data-d="1" aria-label="${label} plus one">+</button></span>`;
   const ck = (attr,val,on,label,dot='',color='') => `<label class="ck"><input type="checkbox" ${color?`class="rc" style="--rc:${color}"`:''} data-sc="${attr}" data-v="${val}" ${on?'checked':''}>${dot}<span>${label}</span></label>`;
   return `<div class="scout panel"><div class="scoutin">
@@ -680,7 +683,7 @@ function scoutBox(p){
     <div class="scrow tally1 sc-fp"><span class="sclab">1st pitch</span>
       <span class="tl">Swing <b>${fp.sw}</b></span><span class="tl">Take <b>${fp.tk}</b></span>
       <span class="tl muted">${fp.sw+fp.tk ? `${Math.round(100*fp.sw/(fp.sw+fp.tk))}% swing` : ''}</span>
-      <span class="tl smr" title="Misses out of all swings, from at-bats charted in the app">Swing &amp; miss <b>${sm.swings ? sm.pct+'%' : '–'}</b>${sm.swings?`<small>${sm.misses}/${sm.swings}</small>`:''}</span>
+      <span class="tl smr" title="Misses out of all swings, from at-bats charted in the app">Swing &amp; miss <b>${sm.swings ? sm.pct+'%' : '–'}</b>${sm.swings?`<small>${sm.misses}/${sm.swings}</small>`:''}${t2.swings?`<span class="t2" title="Swing and miss rate with two strikes">2 strikes <b>${t2.missPct}%</b><small>${t2.misses}/${t2.swings}</small></span>`:''}</span>
       ${fp.unk?`<span class="unk">${fp.unk} need${fp.unk===1?'s':''} a 1st-pitch answer below</span>`:''}</div>
     <div class="scrow bunts sc-bunt">${cnt('sacN','Sac')}${cnt('dragN','Drag')}</div>
     ${countRow(p,'steals','Steals','Steal','sc-st')}
@@ -744,7 +747,7 @@ function battingLine(p){
   return {pa, ab, h, tb, bb, hbp, sf, avg:fmt(h,ab), obp:fmt(h+bb+hbp, ab+bb+hbp+sf), slg:fmt(tb,ab)};
 }
 function swingMiss(p){
-  let swings = 0, misses = 0, abs = 0; const byPitch = [0,0,0,0,0];
+  let swings = 0, misses = 0, abs = 0; const byPitch = [0,0,0,0,0], swingsBy = [0,0,0,0,0];
   // every at-bat charted in the app counts (photo imports are left out: their pitch order isn't known)
   p.abs.forEach(a=>{
     if(a.imp || a.noSeq) return;
@@ -754,13 +757,34 @@ function swingMiss(p){
     const lastQ = Math.max(...ps.map(x=>x.q));
     a.s.forEach(x=>{
       if(!x || !x.sw) return;
-      swings++;
+      swings++; if(x.c>=1 && x.c<=5) swingsBy[x.c-1]++;
       if(x.fl) return;
       if(x.q===lastQ && !isK(a.result)) return;   // contact on the final pitch
       misses++; if(x.c>=1 && x.c<=5) byPitch[x.c-1]++;
     });
   });
-  return {swings, misses, abs, byPitch, pct: swings ? Math.round(100*misses/swings) : null};
+  return {swings, misses, abs, byPitch, swingsBy, pct: swings ? Math.round(100*misses/swings) : null};
+}
+// Two-strike approach, from at-bats charted in the app (pitch order known). The count is rebuilt pitch by pitch:
+// every strike adds one, except a foul ball with two strikes already. Misses follow the same rules as swing & miss.
+function twoStrike(p){
+  let seen = 0, swings = 0, misses = 0, fouls = 0, ks = 0; const kBy = [0,0,0,0,0];
+  p.abs.forEach(a=>{
+    if(a.imp || a.noSeq) return;
+    const ps = [...a.b.map(x=>x&&{...x,row:'b'}), ...a.s.map(x=>x&&{...x,row:'s'})].filter(Boolean).sort((x,y)=>x.q-y.q);
+    if(!ps.length) return;
+    const lastQ = ps[ps.length-1].q; let st = 0;
+    ps.forEach(x=>{
+      if(st>=2){
+        seen++;
+        if(x.row==='s' && x.sw){ swings++; if(x.fl) fouls++; else if(!(x.q===lastQ && !isK(a.result))) misses++; }
+      }
+      if(x.row==='s' && !(x.fl && st>=2)) st = Math.min(st+1, 3);
+    });
+    if(isK(a.result)){ ks++; const last = ps[ps.length-1]; if(last.c>=1 && last.c<=5) kBy[last.c-1]++; }
+  });
+  return {seen, swings, misses, fouls, ks, kBy,
+    swPct: seen ? Math.round(100*swings/seen) : null, missPct: swings ? Math.round(100*misses/swings) : null};
 }
 function firstPitch(p){
   let sw = 0, tk = 0, unk = 0;
@@ -845,7 +869,7 @@ function renderChart(){
       <div class="notes"><label class="lbl" for="notes" style="margin-top:0">Notes</label><textarea id="notes" placeholder="Tendencies, approach, what he chases">${esc(p.notes)}</textarea></div>
     </div>
       <section class="abcol">
-        <div class="abhead"><h3>At-bats</h3><span style="display:flex;gap:6px"><button class="ghost" id="pdf">Team PDF</button><button class="primary" id="newAB">New at-bat</button></span></div>
+        <div class="abhead"><h3>At-bats</h3><span style="display:flex;gap:6px"><button class="ghost" id="scout">Scouting report</button><button class="ghost" id="pdf">Team PDF</button><button class="primary" id="newAB">New at-bat</button></span></div>
         <datalist id="results">${RESULTS.map(r=>`<option value="${r}">`).join('')}</datalist>
         <div id="abs">${abs}</div>
       </section>
@@ -961,6 +985,7 @@ function renderLineup(){
       <div class="set">${S.pitches.map((n,i)=>`<span class="dot" style="background:${PCOL[i]}">${i+1}</span><input data-pitch="${i}" value="${esc(n)}" aria-label="Pitch ${i+1} name">`).join('')}</div>
       <label class="lbl">Team tools</label>
       <div class="btnrow">
+        <button class="ghost" id="scout">Scouting report</button>
         <button class="ghost" id="pdf">Download team PDF</button>
         <button class="ghost" id="print">Print</button>
         <button class="ghost danger" id="clearABs">Clear all at-bats</button>
@@ -1657,6 +1682,7 @@ $('#app').addEventListener('click', e=>{
   if(el = q('[data-rm]')){ const i=T().players.findIndex(p=>p.id===el.dataset.rm), p=T().players[i];
     if(confirm(`Remove ${pName(p,i)}${p.abs.length?` and ${p.abs.length} at-bat(s)`:''}?`)){ T().players.splice(i,1); save(); render(); } return; }
   if(el = q('#pdf')){ exportPDF(el); return; }
+  if(el = q('#scout')){ exportScout(el); return; }
   if(el = q('[data-addcount]')){ openCount(el.dataset.addcount, el.dataset.l); return; }
   if(el = q('[data-rmcount]')){ const p=player(), list=p[el.dataset.rmcount]||[], i=list.lastIndexOf(el.dataset.c);
     if(i>=0){ list.splice(i,1); save(); const y=scrollY; render(); scrollTo(0,y); } return; }
@@ -2442,7 +2468,23 @@ async function exportPDF(btn){
         text(`${sm.pct}%`,smx,ty+2,12,bold,C.strike);
         text(`${sm.misses} of ${sm.swings} swing${sm.swings===1?'':'s'}`,smx + bold.widthOfTextAtSize(`${sm.pct}%`,12) + 6,ty+3,9.5,reg,C.muted);
       } else text(sm.abs ? 'no swings yet' : 'no at-bats charted in the app',smx,ty+3,9.5,reg,C.muted);
-      ty+=20;
+      ty+=17;
+      // a bold label followed by text that wraps inside the column
+      const labeled = (label, body) => {
+        text(label,tx,ty,9,bold);
+        const lw = bold.widthOfTextAtSize(label,9) + 4;
+        const words = clean(body).split(' '); let ln = '', first = true;
+        const flush = () => { text(ln, first ? tx+lw : tx, ty, 9, reg); ty += 11.5; ln = ''; first = false; };
+        words.forEach(w=>{ const tryl = ln ? ln+' '+w : w; if(reg.widthOfTextAtSize(tryl,9) > tw - (first?lw:0)) flush(), ln = w; else ln = tryl; });
+        if(ln) flush();
+      };
+      const short = n => clean(n).length > 9 ? clean(n).slice(0,8)+'.' : clean(n);
+      const byP = S.pitches.map((n,k)=>({n:short(n), sw:sm.swingsBy[k], mi:sm.byPitch[k]})).filter(o=>o.sw);
+      if(byP.length) labeled('Miss % by pitch:', byP.map(o=>`${o.n} ${Math.round(100*o.mi/o.sw)}% (${o.mi}/${o.sw})`).join(' · '));
+      const t2 = twoStrike(p);
+      if(t2.seen) labeled('With 2 strikes:', `swings at ${t2.swPct}% (${t2.swings} of ${t2.seen} pitches), misses ${t2.swings?t2.missPct:0}% (${t2.misses} of ${t2.swings}), ${t2.fouls} foul${t2.fouls===1?'':'s'}`);
+      if(t2.ks) labeled('Strikeouts by pitch:', S.pitches.map((n,k)=>t2.kBy[k]?`${short(n)} ${t2.kBy[k]}`:'').filter(Boolean).join(', ') || `${t2.ks}`);
+      ty+=5;
       // notes
       const sumC = list => { const t={}; (list||[]).forEach(c=>t[c]=(t[c]||0)+1); return COUNTS.filter(c=>t[c]).map(c=>t[c]>1?`${c} x${t[c]}`:c).join(', '); };
       [['Steals',p.steals],['H&R',p.hitruns]].forEach(([l,list])=>{
@@ -2473,6 +2515,137 @@ async function exportPDF(btn){
     const blob = new Blob([bytes],{type:'application/pdf'});
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
     a.download = `${teamName.replace(/\W+/g,'-').replace(/^-|-$/g,'').toLowerCase()||'team'}-spray-chart.pdf`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),60000);
+  }catch(err){
+    console.error(err);
+    alert("Couldn't make the PDF. The PDF tool loads from the internet the first time, so check your connection and try again.");
+  }finally{ btn.textContent = label; btn.disabled = false; }
+}
+
+/* ---------- one-page scouting report for the whole lineup ---------- */
+async function exportScout(btn){
+  const team = T(), ti = S.teams.indexOf(team);
+  const hitters = team.players.map((p,i)=>({p,i})).filter(({p})=>p.name.trim()||p.num||p.abs.length);
+  if(!hitters.length){ alert('Add hitters to the lineup before making the scouting report.'); return; }
+  const label = btn.textContent; btn.textContent = 'Making PDF...'; btn.disabled = true;
+  try{
+    const {PDFDocument, StandardFonts, rgb} = await loadPdfLib();
+    const doc = await PDFDocument.create();
+    const reg = await doc.embedFont(StandardFonts.Helvetica), bold = await doc.embedFont(StandardFonts.HelveticaBold);
+    const hex = h => rgb(parseInt(h.slice(1,3),16)/255, parseInt(h.slice(3,5),16)/255, parseInt(h.slice(5,7),16)/255);
+    const C = {ink:hex('#1D2B4A'),muted:hex('#66708A'),line:hex('#C9CED8'),zebra:hex('#F1F3F7'),white:hex('#FFFFFF'),strike:hex('#C8102E'),ball:hex('#2E5EAA')};
+    const W=792, H=612, M=28;
+    const clean = t => String(t??'').replace(/[^\x20-\x7E\xA0-\xFF]/g,'?');
+    const fit = (t,f,sz,max) => { t=clean(t); if(f.widthOfTextAtSize(t,sz)<=max) return t; while(t && f.widthOfTextAtSize(t+'...',sz)>max) t=t.slice(0,-1); return t+'...'; };
+    let pg;
+    const text = (t,x,y,sz,f=reg,color=C.ink)=>pg.drawText(clean(t),{x,y:H-y-sz*0.75,size:sz,font:f,color});
+    const ctext = (t,cx,y,sz,f=reg,color=C.ink)=>text(t,cx-f.widthOfTextAtSize(clean(t),sz)/2,y,sz,f,color);
+    const rect = (x,y,w,h,o)=>pg.drawRectangle({x,y:H-y-h,width:w,height:h,...o});
+    const line = (x1,y1,x2,y2,color=C.line,t=0.75)=>pg.drawLine({start:{x:x1,y:H-y1},end:{x:x2,y:H-y2},thickness:t,color});
+    const teamName = clean(tName(team,ti));
+    const today = new Date().toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
+
+    // columns: [header line 1, header line 2, width, align]
+    const cols = [
+      ['', '#', 24,'c'], ['', 'Hitter', 118,'l'], ['', 'Bats', 30,'c'], ['', 'Run', 30,'c'],
+      ['', 'PA', 28,'c'], ['', 'AVG', 38,'c'], ['', 'OBP', 38,'c'], ['', 'SLG', 38,'c'],
+      ['1st pitch','swing', 46,'c'], ['Swing &','miss', 44,'c'], ['2-strike','miss', 46,'c'],
+      ['Pull / Mid / Oppo','% of balls in play', 92,'c'], ['GB / FB / LD','% of balls in play', 86,'c'], ['Bunts','Sac / Drag', 50,'c']];
+    const total = cols.reduce((a,c)=>a+c[2],0), extra = (W-2*M-total)/cols.length;
+    cols.forEach(c=>c[2]+=extra);
+    const colX = []; cols.reduce((x,c)=>{ colX.push(x); return x+c[2]; }, M);
+
+    const header = cont => {
+      pg = doc.addPage([W,H]);
+      text(`${teamName} scouting report${cont?' (continued)':''}`, M, M, 18, bold);
+      text(today, W-M-reg.widthOfTextAtSize(today,10), M+4, 10, reg, C.muted);
+      let y = M+30;
+      cols.forEach((c,j)=>{
+        const cx = colX[j] + c[2]/2;
+        if(c[3]==='l'){ if(c[0]) text(c[0],colX[j]+4,y,7,bold,C.muted); text(c[1],colX[j]+4,y+9,8,bold,C.muted); }
+        else { if(c[0]) ctext(c[0],cx,y,7,bold,C.muted); ctext(c[1],cx,y+9,c[0]?6.5:8,c[0]?reg:bold,C.muted); }
+      });
+      line(M,y+20,W-M,y+20,C.ink,1.2);
+      return y+24;
+    };
+    let y = header(false), zebra = false, starred = false;
+    const RUNC = {red:'#D0192B', yellow:'#F2C200', green:'#1E9A4B'};
+
+    hitters.forEach(({p,i})=>{
+      const bl = battingLine(p), fp = firstPitch(p), sm = swingMiss(p), t2 = twoStrike(p), td = tendencies(p);
+      const pctS = (n,d) => d ? Math.round(100*n/d)+'%' : '-';
+      const gb = td.rows.GB.reduce((a,b)=>a+b,0), fb = td.rows.FB.reduce((a,b)=>a+b,0), ld = td.rows.LD.reduce((a,b)=>a+b,0);
+      const dirs = td.n ? td.all.map(v=>Math.round(100*v/td.n)).join(' / ') + (td.byHand?'':'*') : '-';
+      if(td.n && !td.byHand) starred = true;
+      const mix = td.n ? [gb,fb,ld].map(v=>Math.round(100*v/td.n)).join(' / ') : '-';
+      const bunts = (p.sacN||p.dragN) ? `${p.sacN||0} / ${p.dragN||0}` : '-';
+      const vals = [String(i+1)+'.', null, p.bats||'-', null, String(bl.pa||'-'), bl.avg, bl.obp, bl.slg,
+        pctS(fp.sw, fp.sw+fp.tk), sm.swings?sm.pct+'%':'-', t2.swings?t2.missPct+'%':'-', dirs, mix, bunts];
+
+      // second line: steals, hit and runs, notes
+      const sumC = list => { const t={}; (list||[]).forEach(c=>t[c]=(t[c]||0)+1); return COUNTS.filter(c=>t[c]).map(c=>t[c]>1?`${c} x${t[c]}`:c).join(', '); };
+      const bits = [];
+      if((p.steals||[]).length) bits.push(['Steals: ', sumC(p.steals)]);
+      if((p.hitruns||[]).length) bits.push(['H&R: ', sumC(p.hitruns)]);
+      const notes = clean(p.notes||'').replace(/\s+/g,' ').trim();
+      const subW = W - M - (colX[1]+4);
+      // wrap notes to at most 2 lines after the steal / H&R bits
+      let sub = [];
+      if(bits.length || notes){
+        let lead = bits.map(b=>b[0]+b[1]).join('   ') + (bits.length && notes ? '   ' : '');
+        const words = notes ? notes.split(' ') : [];
+        let ln = lead; const lines = [];
+        words.forEach(w=>{ const t = ln ? (ln.endsWith(' ')||!ln ? ln+w : ln+' '+w) : w; if(reg.widthOfTextAtSize(t,8) > subW && ln.trim()){ lines.push(ln); ln = w; } else ln = t; });
+        if(ln.trim()) lines.push(ln);
+        sub = lines.slice(0,2);
+        if(lines.length>2) sub[1] = fit(sub[1]+' '+lines.slice(2).join(' '), reg, 8, subW);
+      }
+      const rowH = 18 + sub.length*10.5 + (sub.length?2:0);
+      if(y + rowH > H - M - 22){ y = header(true); zebra = false; }
+      if(zebra) rect(M, y-3, W-2*M, rowH, {color:C.zebra});
+      zebra = !zebra;
+
+      cols.forEach((c,j)=>{
+        const cx = colX[j] + c[2]/2;
+        if(j===1){
+          // full name if it fits (shrinking a little first), otherwise first initial and last name
+          const num = p.num ? '#'+p.num+'  ' : '', full = num + pName(p,i), sh = num + shortName(pName(p,i)), room = c[2]-6;
+          let nm = full, sz = 10.5;
+          while(sz > 9 && bold.widthOfTextAtSize(clean(nm),sz) > room) sz -= 0.5;
+          if(bold.widthOfTextAtSize(clean(nm),sz) > room){ nm = sh; sz = 10.5; while(sz > 9 && bold.widthOfTextAtSize(clean(nm),sz) > room) sz -= 0.5; }
+          text(fit(nm,bold,sz,room), colX[j]+4, y+1+(10.5-sz)/2, sz, bold);
+        } else if(j===3){
+          const rc = RUNC[p.runner]; if(rc) pg.drawCircle({x:cx, y:H-(y+5), size:4.5, color:hex(rc), borderColor:C.ink, borderWidth:0.6}); else ctext('-',cx,y+1,10,reg,C.muted);
+        } else {
+          const v = vals[j];
+          const isRate = j===9 || j===10;
+          ctext(v, cx, y+1, j>=11 ? 9.5 : 10.5, (j>=5&&j<=7)||isRate ? bold : reg, isRate && v!=='-' ? C.strike : C.ink);
+        }
+      });
+      sub.forEach((l,k)=>{
+        // labels in bold
+        let x = colX[1]+4, rest = l;
+        if(k===0) bits.forEach(([lab,val])=>{ const at = rest.indexOf(lab); if(at===0){ text(lab,x,y+16,8,bold,C.muted); x += bold.widthOfTextAtSize(lab,8); text(val,x,y+16,8,reg,C.muted); x += reg.widthOfTextAtSize(val+'   ',8); rest = rest.slice(lab.length+val.length).replace(/^ {3}/,''); } });
+        text(rest, x, y+16+k*10.5, 8, reg, C.ink);
+      });
+      y += rowH;
+      line(M, y-3, W-M, y-3);
+    });
+
+    // footnote on every page
+    const foot = 'Swing & miss and 2-strike miss use at-bats charted in the app (fouls count as swings, not misses; the ball put in play is not a miss).  1st pitch swing: % of first-pitch strikes he swung at.'
+      + (starred ? '  * Bats not set or switch hitter: Left / Center / Right instead of Pull / Mid / Oppo.' : '');
+    doc.getPages().forEach(pp=>{ pg = pp;
+      const words = foot.split(' '); let ln = '', fy = H - M - 14; const out = [];
+      words.forEach(w=>{ const t = ln ? ln+' '+w : w; if(reg.widthOfTextAtSize(t,7) > W-2*M){ out.push(ln); ln = w; } else ln = t; }); if(ln) out.push(ln);
+      out.forEach((l,k)=>text(l, M, fy + k*9 - (out.length-1)*9, 7, reg, C.muted));
+    });
+
+    const bytes = await doc.save();
+    const blob = new Blob([bytes],{type:'application/pdf'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `${teamName.replace(/\W+/g,'-').replace(/^-|-$/g,'').toLowerCase()||'team'}-scouting-report.pdf`;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(()=>URL.revokeObjectURL(a.href),60000);
   }catch(err){
