@@ -566,7 +566,7 @@ function readFirebaseSetup(){
 let FIREBASE_CONFIG = readFirebaseSetup();
 const CAN_FETCH_CONFIG = /^https?:/.test(location.protocol);
 
-const APP_VERSION = '2026-11-18a';
+const APP_VERSION = '2026-11-18b';
 const KEY = 'sprayChart.v1';
 const BOXES = 12;
 const PCOL = ['var(--p1)','var(--p2)','var(--p3)','var(--p4)','var(--p5)'];
@@ -2344,10 +2344,9 @@ async function exportPDF(btn){
       text(teamName+' spray chart',M,M,10,bold,C.muted);
       const right = cont ? `continued, ${today}` : today;
       text(right,W-M-reg.widthOfTextAtSize(clean(right),10),M,10,reg,C.muted);
-      const nm = `${p.num?'#'+p.num+'  ':''}${pName(p,i)}`;
-      text(fit(nm,bold,22,330),M,M+18,22,bold);
       const meta = [`Batting ${i+1}`, p.pos&&`Pos ${p.pos}`, p.bats&&`Bats ${p.bats}`, p.throws&&`Throws ${p.throws}`].filter(Boolean).join('   ');
-      text(meta,W-M-reg.widthOfTextAtSize(clean(meta),11),M+16,11,reg,C.muted);
+      const metaX = W-M-reg.widthOfTextAtSize(clean(meta),11);
+      text(meta,metaX,M+16,11,reg,C.muted);
       const fp = firstPitch(p);
       const flags = [fp.sw+fp.tk ? `1st pitch: Swing ${fp.sw}, Take ${fp.tk}` : '', `Sac ${p.sacN||0}`, `Drag ${p.dragN||0}`].filter(Boolean);
       const rn = RUNNER.find(r=>r[0]===p.runner);
@@ -2355,7 +2354,11 @@ async function exportPDF(btn){
       const fl = flags.join('    ');
       if(fl){ fxr -= bold.widthOfTextAtSize(fl,10); text(fl,fxr,M+32,10,bold); fxr -= 14; }
       if(rn){ const rt=`Runner: ${rn[1]}`; fxr -= reg.widthOfTextAtSize(rt,10); text(rt,fxr,M+32,10,reg); 
-        pg.drawCircle({x:fxr-8,y:H-(M+32+4),size:4.5,color:hex(rn[2]),borderColor:C.ink,borderWidth:0.6}); }
+        pg.drawCircle({x:fxr-8,y:H-(M+32+4),size:4.5,color:hex(rn[2]),borderColor:C.ink,borderWidth:0.6}); fxr -= 14; }
+      // name gets whatever room is left of the details on the right, shrinking if it has to
+      const nm = `${p.num?'#'+p.num+'  ':''}${pName(p,i)}`, room = Math.min(fxr, metaX) - M - 14;
+      let nsz = 22; while(nsz > 14 && bold.widthOfTextAtSize(clean(nm),nsz) > room) nsz -= 1;
+      text(fit(nm,bold,nsz,room),M,M+18+(22-nsz)*0.6,nsz,bold);
       line(M,M+50,W-M,M+50,C.ink,1.2);
     }
 
@@ -2493,19 +2496,23 @@ async function exportPDF(btn){
         const w = bold.widthOfTextAtSize(clean(`${l} (${list.length}):`),9.5)+4;
         text(fit(sumC(list),reg,9.5,tw-w),tx+w,ty,9.5); ty+=13;
       });
-      if((p.steals||[]).length || (p.hitruns||[]).length) ty+=4;
-      text('Notes',tx,ty,12,bold); ty+=15;
-      const words = clean(p.notes).split(/\s+/).filter(Boolean); let ln='', lines=[];
-      words.forEach(w=>{ const tryl = ln?ln+' '+w:w; if(reg.widthOfTextAtSize(tryl,9.5)>tw){ lines.push(ln); ln=w; } else ln=tryl; });
-      if(ln) lines.push(ln);
-      const maxL = 7;
-      if(lines.length>maxL){ lines=lines.slice(0,maxL); lines[maxL-1]=fit(lines[maxL-1],reg,9.5,tw-12)+'...'; }
-      if(!lines.length) for(let k=0;k<2;k++) line(tx,ty+k*16+12,W-M,ty+k*16+12);
-      lines.forEach((l,k)=>text(l,tx,ty+k*12,9.5));
-      const notesEnd = ty + (lines.length ? lines.length*12 : 2*16+4);
+      const rightEnd = ty;
 
-      // at-bats start below whichever is lower: the field or the right-hand column
-      const gTop = Math.max(fy+312*sc+30, notesEnd+18);
+      // notes go under the field, across the left column
+      const nx = fx, nw = 312;
+      let ny = ly + 24;
+      text('Notes',nx,ny,12,bold); ny+=15;
+      const words = clean(p.notes).split(/\s+/).filter(Boolean); let ln='', lines=[];
+      words.forEach(w=>{ const tryl = ln?ln+' '+w:w; if(reg.widthOfTextAtSize(tryl,9.5)>nw){ lines.push(ln); ln=w; } else ln=tryl; });
+      if(ln) lines.push(ln);
+      const maxL = 8;
+      if(lines.length>maxL){ lines=lines.slice(0,maxL); lines[maxL-1]=fit(lines[maxL-1],reg,9.5,nw-12)+'...'; }
+      if(!lines.length) for(let k=0;k<2;k++) line(nx,ny+k*16+12,nx+nw,ny+k*16+12);
+      lines.forEach((l,k)=>text(l,nx,ny+k*12,9.5));
+      const notesEnd = ny + (lines.length ? lines.length*12 : 2*16+4);
+
+      // at-bats start below whichever is lower: the notes under the field or the right-hand column
+      const gTop = Math.max(fy+312*sc+30, notesEnd+16, rightEnd+14);
       line(M,gTop-8,W-M,gTop-8,C.ink,1.2);
       let next = abGrid(p,0,gTop);
       while(next < p.abs.length){ pageHeader(p,i,true); next = abGrid(p,next,M+62); }
