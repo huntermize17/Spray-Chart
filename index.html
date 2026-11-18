@@ -159,6 +159,7 @@ main{max-width:1100px;margin:0 auto;padding:12px 16px 40px}
 .fieldwrap .tally .ti svg{width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:6px}
 .tendh{font-family:var(--head);font-size:20px;margin:14px 0 2px}
 .headline{margin:0;font-weight:600}
+.posnote{margin:4px 0 0;padding:6px 10px;border-left:4px solid var(--ink);background:color-mix(in srgb,var(--ink) 6%,var(--card));border-radius:0 6px 6px 0}
 [data-theme="sun"] .tally td small{font-weight:700}
 .dot{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:4px;color:#fff;font-weight:600;font-size:13px;margin-right:6px;vertical-align:-4px}
 
@@ -569,7 +570,7 @@ function readFirebaseSetup(){
 let FIREBASE_CONFIG = readFirebaseSetup();
 const CAN_FETCH_CONFIG = /^https?:/.test(location.protocol);
 
-const APP_VERSION = '2026-11-18e';
+const APP_VERSION = '2026-11-18f';
 const KEY = 'sprayChart.v1';
 const BOXES = 12;
 const PCOL = ['var(--p1)','var(--p2)','var(--p3)','var(--p4)','var(--p5)'];
@@ -678,6 +679,52 @@ function tendencies(p){
   return {cols, rows, all, n: all[0]+all[1]+all[2], byHand: !!b};
 }
 const pct = (v,t) => t ? Math.round(100*v/t)+'%' : '';
+// one-line suggested defense from where his balls in play went
+// field drawing: home plate at (200,300), infield dirt edge 130 out, fence 283 out
+function positionNote(p){
+  const b = p.bats==='R' || p.bats==='L' ? p.bats : null;
+  const marks = p.abs.filter(a=>a.mark).map(a=>a.mark).concat((p.sprays||[]).filter(m=>m && m.t));
+  if(marks.length < 4) return marks.length ? `Need more balls in play (${marks.length} so far).` : '';
+  const dir = list => {
+    const c = [0,0,0]; // pull/left, middle, oppo/right
+    list.forEach(m=>{ const sd = side(m); c[sd==='C' ? 1 : b ? ((sd==='L')===(b==='R') ? 0 : 2) : (sd==='L' ? 0 : 2)]++; });
+    return c;
+  };
+  const lean = (c, n, where) => {
+    // where: 'IF' or 'OF'; returns "shade pull (3B side)" style text
+    const [a, , z] = c.map(v=>v/n);
+    const sideTxt = k => {
+      const left = b ? ((k===0) === (b==='R')) : k===0;
+      return where==='IF' ? (left ? '3B side' : '1B side') : (left ? 'LF' : 'RF');
+    };
+    const name = k => b ? (k===0 ? 'pull' : 'oppo') : (k===0 ? 'left' : 'right');
+    if(a >= .75) return `shift ${name(0)} (${sideTxt(0)})`;
+    if(a >= .6) return `shade ${name(0)} (${sideTxt(0)})`;
+    if(z >= .6) return `shift ${name(2)} (${sideTxt(2)})`;
+    if(z >= .45) return `shade ${name(2)} (${sideTxt(2)})`;
+    if(c[1]/n >= .5) return 'pinch the middle';
+    return 'straight up';
+  };
+  const dist = m => Math.hypot(m.x-200, 300-m.y);
+  const gb = marks.filter(m=>m.t==='GB'), air = marks.filter(m=>m.t!=='GB');
+  const parts = [];
+  if(gb.length >= 3) parts.push('IF ' + lean(dir(gb), gb.length, 'IF'));
+  const ofAir = air.filter(m=>dist(m) > 135);
+  if(ofAir.length >= 3){
+    let t = 'OF ' + lean(dir(ofAir), ofAir.length, 'OF');
+    const d = ofAir.reduce((k,m)=>k+dist(m),0)/ofAir.length;
+    if(d < 190) t += ', shallow'; else if(d > 237) t += ', deep';
+    parts.push(t);
+  } else if(air.length >= 3 && air.length - ofAir.length >= 3) parts.push('OF in, balls in the air stay shallow');
+  const n = marks.length, gbP = gb.length/n;
+  if(gbP >= .6) parts.push('mostly grounders');
+  else if(air.length/n >= .7) parts.push('mostly in the air');
+  if((p.dragN||0) > 0) parts.push('watch the drag bunt');
+  else if((p.sacN||0) > 1) parts.push('corners in on bunt counts');
+  if(!parts.length) return `Straight up (${n} balls in play).`;
+  const txt = parts.join('; ');
+  return txt.charAt(0).toUpperCase() + txt.slice(1) + `. (${n} balls in play${n<8?', small sample':''})`;
+}
 const RUNNER = [['red','Red','#D0192B'],['yellow','Yellow','#F2C200'],['green','Green','#1E9A4B']];
 function scoutBox(p){
   const fp = firstPitch(p), sm = swingMiss(p), t2 = twoStrike(p);
@@ -858,6 +905,7 @@ function renderChart(){
   let headline = 'No balls in play marked yet.';
   if(td.n){ const k = td.all.indexOf(Math.max(...td.all));
     headline = `${td.byHand ? ['Pulls','Goes up the middle on','Goes oppo on'][k] : ['Goes to left field on','Goes to center on','Goes to right field on'][k]} ${pct(td.all[k],td.n)} of ${td.n} ball${td.n===1?'':'s'} in play.`; }
+  const posNote = positionNote(p);
   const tallyNote = td.byHand ? '' : `<p class="hint">${p.bats==='S'?'Switch hitter, so this shows left, center, and right field.':'Set Bats to R or L on the Lineup tab to see pull and oppo.'}</p>`;
 
   const abs = p.abs.length ? p.abs.map((a,i)=>abCard(a,i)).reverse().join('')
@@ -890,6 +938,7 @@ function renderChart(){
           <p class="hint">Tap to mark where the ball went for the highlighted at-bat, even on top of other marks. Press and hold a mark to pick that at-bat; keep holding and slide to move it. Filled shapes are hits.${(p.sprays||[]).length?` Dashed shapes without a number are paper-chart lines not tied to an at-bat (${p.sprays.length}); they count in the tendencies. Hold one and let go to remove it.`:''}</p>
           <h4 class="tendh">Spray tendencies</h4>
           <p class="headline">${headline}</p>
+          ${posNote?`<p class="posnote"><b>Positioning:</b> ${esc(posNote)}</p>`:''}
           <table class="tally"><thead><tr><th></th>${td.cols.map(c=>`<th>${c}</th>`).join('')}<th>Total</th></tr></thead><tbody>${tRows}</tbody></table>
           ${tallyNote}
         </div>
@@ -2490,6 +2539,16 @@ async function exportPDF(btn){
         ty+=14;
       });
       if(!td.byHand){ text(p.bats==='S'?'Switch hitter: left / center / right field':'Bats not set: left / center / right field',tx,ty+1,8,reg,C.muted); ty+=11; }
+      const pn = positionNote(p);
+      if(pn){
+        const lab = 'Positioning: ', lw = bold.widthOfTextAtSize(lab,8.5);
+        const lines = []; let ln = '';
+        pn.split(' ').forEach(w=>{ const t = ln ? ln+' '+w : w; if(ln && reg.widthOfTextAtSize(clean(t),8.5) > tw-lw){ lines.push(ln); ln = w; } else ln = t; });
+        if(ln) lines.push(ln);
+        text(lab,tx,ty+2,8.5,bold);
+        lines.slice(0,3).forEach((l,k)=>{ text(l,tx+lw,ty+2,8.5,reg); ty+=11; });
+        ty+=1;
+      }
       ty+=8;
       // tally
       text('Pitches seen',tx,ty,12,bold); ty+=16;
@@ -2653,6 +2712,8 @@ async function exportScout(btn){
       // second line: steals, hit and runs, notes
       const sumC = list => { const t={}; (list||[]).forEach(c=>t[c]=(t[c]||0)+1); return COUNTS.filter(c=>t[c]).map(c=>t[c]>1?`${c} x${t[c]}`:c).join(', '); };
       const bits = [];
+      const pnS = positionNote(p).replace(/ \(\d+ balls in play(, small sample)?\)$/, m=>/small/.test(m)?' (small sample)':'');
+      if(pnS && !/^Need more/.test(pnS)) bits.push(['Defense: ', pnS]);
       if((p.steals||[]).length) bits.push(['Steals: ', sumC(p.steals)]);
       if((p.hitruns||[]).length) bits.push(['H&R: ', sumC(p.hitruns)]);
       const notes = clean(p.notes||'').replace(/\s+/g,' ').trim();
