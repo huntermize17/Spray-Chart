@@ -216,11 +216,11 @@ label.lbl{display:block;font-family:var(--head);font-weight:600;font-size:17px;m
 .lu .drag{display:flex;align-items:center;justify-content:center;gap:6px;height:40px;border:1.5px solid transparent;border-radius:6px;background:transparent;padding:0 4px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .lu .spot{display:flex;align-items:center;justify-content:center;height:40px;color:var(--muted)}
 .lu .spot b{font-family:var(--head);font-weight:700;font-size:22px}
-.luhead{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;flex-wrap:wrap}
-.lusort{display:flex;border:2px solid var(--ink);border-radius:8px;overflow:hidden;margin-top:10px}
-.lusort button{border:0;border-radius:0;background:var(--card);color:var(--ink);padding:6px 12px;font-weight:600;font-size:15px;min-height:36px}
-.lusort button+button{border-left:1.5px solid var(--ink)}
-.lusort button[aria-pressed="true"]{background:var(--ink);color:var(--card)}
+.lu.headrow .sorth{display:flex;align-items:center;gap:5px;border:0;background:transparent;padding:6px 0;min-height:36px;font:inherit;color:inherit;text-align:left;cursor:pointer;justify-self:start}
+.lu.headrow .sorth.on{color:var(--ink)}
+.sarr{font-size:11px;letter-spacing:-1px}
+.sarr.off{opacity:.45;font-size:9px}
+.linkbtn{border:0;background:none;padding:0;font:inherit;color:var(--ink);font-weight:700;text-decoration:underline;cursor:pointer}
 .lu .drag:hover{border-color:var(--line);background:var(--paper)}
 .lu .drag b{font-family:var(--head);font-weight:700;font-size:22px;min-width:16px}
 .grip{width:10px;height:18px;flex:none;background-image:radial-gradient(circle,var(--muted) 1.6px,transparent 1.8px);background-size:5px 6px;opacity:.9}
@@ -577,7 +577,7 @@ function readFirebaseSetup(){
 let FIREBASE_CONFIG = readFirebaseSetup();
 const CAN_FETCH_CONFIG = /^https?:/.test(location.protocol);
 
-const APP_VERSION = '2026-11-18g';
+const APP_VERSION = '2026-11-18h';
 const KEY = 'sprayChart.v1';
 const BOXES = 12;
 const PCOL = ['var(--p1)','var(--p2)','var(--p3)','var(--p4)','var(--p5)'];
@@ -1010,24 +1010,27 @@ function abCard(a,i){
 // last name for sorting: the last word of the name ("John Hunter McDougal" -> McDougal)
 const lastName = n => { const w = String(n||'').trim().split(/\s+/); return w[w.length-1] || ''; };
 function lineupView(){
-  const mode = S.luSort || 'order';
+  const sort = S.luSort || 'order';
+  const [mode, dir] = sort.split('-'), sg = dir==='d' ? -1 : 1;   // 'name', 'name-d', 'num', 'num-d'
   const list = T().players.map((p,i)=>({p,i}));
   if(mode==='name') list.sort((a,b)=>{
     const an = a.p.name.trim(), bn = b.p.name.trim();
-    if(!an !== !bn) return an ? -1 : 1;          // blank names last
-    return lastName(an).localeCompare(lastName(bn),undefined,{sensitivity:'base'}) || an.localeCompare(bn,undefined,{sensitivity:'base'}) || a.i-b.i;
+    if(!an !== !bn) return an ? -1 : 1;          // blank names stay at the bottom
+    return sg*(lastName(an).localeCompare(lastName(bn),undefined,{sensitivity:'base'}) || an.localeCompare(bn,undefined,{sensitivity:'base'})) || a.i-b.i;
   });
   if(mode==='num') list.sort((a,b)=>{
     const an = String(a.p.num).trim(), bn = String(b.p.num).trim();
-    if(!an !== !bn) return an ? -1 : 1;          // no number last
+    if(!an !== !bn) return an ? -1 : 1;          // no number stays at the bottom
     const x = parseInt(an,10), y = parseInt(bn,10);
     if(isNaN(x) !== isNaN(y)) return isNaN(x) ? 1 : -1;
-    return (x-y) || an.length-bn.length || an.localeCompare(bn) || a.i-b.i;   // 0 before 00
+    return sg*((x-y) || an.length-bn.length || an.localeCompare(bn)) || a.i-b.i;   // 0 before 00
   });
-  return {mode, list};
+  return {mode: mode==='name'||mode==='num' ? mode : 'order', dir: sg, list};
 }
 function renderLineup(){
-  const {mode, list} = lineupView(), sorted = mode!=='order';
+  const {mode, dir, list} = lineupView(), sorted = mode!=='order';
+  const arrow = m => mode===m ? `<span class="sarr" aria-hidden="true">${dir>0?'▲':'▼'}</span>` : `<span class="sarr off" aria-hidden="true">▲▼</span>`;
+  const sortLab = m => mode!==m ? (m==='name'?'Sort by name, A to Z':'Sort by number, low to high') : dir>0 ? (m==='name'?'Sorted A to Z. Tap for Z to A':'Sorted low to high. Tap for high to low') : 'Tap to go back to batting order';
   const rows = list.map(({p,i})=>`
     <div class="lu" data-p="${p.id}">
       ${sorted ? `<span class="ord spot" title="Batting ${i+1}"><b>${i+1}</b></span>`
@@ -1048,10 +1051,9 @@ function renderLineup(){
       <div class="btnrow"><button class="ghost" id="addTeam">Add another team</button>
         <button class="ghost" id="goImport">📷 Import from photos</button>
         <button class="ghost danger" data-delteam="${T().id}">Delete this team</button></div>
-      <div class="luhead"><label class="lbl">${sorted?'Roster':'Batting order'}</label>
-        <div class="lusort" role="group" aria-label="Sort the list">${[['order','Batting order'],['name','Name'],['num','Number']].map(([v,l])=>`<button data-lusort="${v}" aria-pressed="${mode===v}">${l}</button>`).join('')}</div></div>
-      <p class="hint" style="margin:0 0 6px">${sorted?`Sorted by ${mode==='name'?'last name':'jersey number'}. The left number is still each hitter's spot in the batting order. Tap <b>Batting order</b> to drag hitters around.`:'Drag the handle by the number to move a hitter up or down.'}</p>
-      <div class="lu headrow"><span></span><span>Name</span><span>#</span><span class="opt">Pos</span><span class="opt">Bats</span><span class="opt">Throws</span><span></span></div>
+      <label class="lbl">Batting order</label>
+      <p class="hint" style="margin:0 0 6px">${sorted?`Sorted by ${mode==='name'?`last name, ${dir>0?'A to Z':'Z to A'}`:`number, ${dir>0?'low to high':'high to low'}`}. The gray number on the left is still each hitter's spot in the order. <button class="linkbtn" data-lusort="order">Back to batting order</button> to drag hitters around.`:'Drag the handle by the number to move a hitter up or down. Tap <b>Name</b> or <b>#</b> to sort.'}</p>
+      <div class="lu headrow"><span></span><button class="sorth${mode==='name'?' on':''}" data-lusort="name" aria-label="${sortLab('name')}">Name ${arrow('name')}</button><button class="sorth${mode==='num'?' on':''}" data-lusort="num" aria-label="${sortLab('num')}"># ${arrow('num')}</button><span class="opt">Pos</span><span class="opt">Bats</span><span class="opt">Throws</span><span></span></div>
       <div class="lulist">${rows}</div>
       <div class="btnrow"><button class="primary" id="addP">Add batter</button></div>
     </div>
@@ -1816,7 +1818,11 @@ $('#app').addEventListener('click', e=>{
     if(!S.teams.find(x=>x.id===S.teamId)) S.teamId = S.teams[0].id;
     save(); render(); return;
   }
-  if(q('[data-lusort]')){ S.luSort = q('[data-lusort]').dataset.lusort; save(); render(); return; }
+  if(q('[data-lusort]')){
+    const m = q('[data-lusort]').dataset.lusort, cur = S.luSort || 'order';
+    S.luSort = m==='order' ? 'order' : cur===m ? m+'-d' : cur===m+'-d' ? 'order' : m;
+    save(); render(); return;
+  }
   if(q('#addP')){ T().players.push(blankPlayer()); save(); render(); return; }
   if(el = q('[data-rm]')){ const i=T().players.findIndex(p=>p.id===el.dataset.rm), p=T().players[i];
     if(confirm(`Remove ${pName(p,i)}${p.abs.length?` and ${p.abs.length} at-bat(s)`:''}?`)){ T().players.splice(i,1); save(); render(); } return; }
