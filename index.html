@@ -578,7 +578,7 @@ function readFirebaseSetup(){
 let FIREBASE_CONFIG = readFirebaseSetup();
 const CAN_FETCH_CONFIG = /^https?:/.test(location.protocol);
 
-const APP_VERSION = '2026-11-18l';
+const APP_VERSION = '2026-11-18m';
 const KEY = 'sprayChart.v1';
 const BOXES = 12;
 const PCOL = ['var(--p1)','var(--p2)','var(--p3)','var(--p4)','var(--p5)'];
@@ -613,6 +613,12 @@ if(S.tab==='import') S.tab = 'lineup';
 // An import builds a whole batch of at-bats in the same instant; in the app you add them one at a time.
 // So any burst of 3+ at-bats created within 1.5 seconds of each other is marked as from paper.
 function markPaperImports(t){
+  // Imports from before at-bats got a time stamp have no ts at all. The coach's own early app at-bats
+  // also have no ts, but those were gone back over on film and have foul balls marked; paper charts never do.
+  // So when none of a team's un-stamped at-bats has a foul, they all came from paper.
+  const old = [];
+  t.players.forEach(p=>p.abs.forEach(a=>{ if(!a.ts && (a.b.some(Boolean) || a.s.some(Boolean) || a.result)) old.push(a); }));
+  if(old.length && !old.some(a=>a.s.some(x=>x && x.fl))) old.forEach(a=>{ a.imp = true; });
   const all = [];
   t.players.forEach(p=>p.abs.forEach(a=>{ if(a.ts) all.push(a); }));
   all.sort((x,y)=>x.ts-y.ts);
@@ -2578,7 +2584,7 @@ async function exportPDF(btn){
       // spray tendencies
       const td = tendencies(p);
       text('Spray tendencies',tx,ty,12,bold); ty+=16;
-      const sx=[tx, tx+tw-160, tx+tw-117, tx+tw-74, tx+tw-30];
+      const sx=[tx, tx+tw-148, tx+tw-108, tx+tw-68, tx+tw-27];
       td.cols.concat('Total').forEach((h,k)=>ctext(h,sx[k+1]+10,ty,8,bold,C.muted)); ty+=11;
       [['GB','Ground'],['FB','Fly'],['LD','Line'],['All','All']].forEach(([k,l])=>{
         const r = k==='All' ? td.all : td.rows[k], tot=r[0]+r[1]+r[2], mx=Math.max(...r);
