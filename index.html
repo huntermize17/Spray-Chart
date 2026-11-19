@@ -220,7 +220,7 @@ label.lbl{display:block;font-family:var(--head);font-weight:600;font-size:17px;m
 .lu.headrow .sorth.on{color:var(--ink)}
 .sarr{font-size:11px;letter-spacing:-1px}
 .sarr.off{opacity:.45;font-size:9px}
-.linkbtn{border:0;background:none;padding:0;font:inherit;color:var(--ink);font-weight:700;text-decoration:underline;cursor:pointer}
+.backlink{border:0;background:none;padding:0;font:inherit;color:var(--ink);font-weight:700;text-decoration:underline;cursor:pointer}
 .lu .drag:hover{border-color:var(--line);background:var(--paper)}
 .lu .drag b{font-family:var(--head);font-weight:700;font-size:22px;min-width:16px}
 .grip{width:10px;height:18px;flex:none;background-image:radial-gradient(circle,var(--muted) 1.6px,transparent 1.8px);background-size:5px 6px;opacity:.9}
@@ -245,6 +245,7 @@ body.sorting{user-select:none;-webkit-user-select:none}
 .tl.smr{white-space:normal}
 .tl.smr .t2{display:inline-block;white-space:nowrap;margin-left:14px}
 .tl.smr small{margin-left:6px;color:var(--muted);font-size:13px}
+.smnote{display:block;color:var(--muted);font-size:12px;line-height:1.3;margin-top:1px}
 .unk{display:block;color:#C98300;font-weight:600;white-space:normal;margin-top:2px}
 .firstq{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;font-size:14px;font-weight:600}
 .firstq button{border:1.5px solid var(--ink);background:var(--card);border-radius:6px;padding:3px 12px;font-weight:600}
@@ -577,7 +578,7 @@ function readFirebaseSetup(){
 let FIREBASE_CONFIG = readFirebaseSetup();
 const CAN_FETCH_CONFIG = /^https?:/.test(location.protocol);
 
-const APP_VERSION = '2026-11-18h';
+const APP_VERSION = '2026-11-18l';
 const KEY = 'sprayChart.v1';
 const BOXES = 12;
 const PCOL = ['var(--p1)','var(--p2)','var(--p3)','var(--p4)','var(--p5)'];
@@ -608,7 +609,20 @@ function upgrade(d){
 let S;
 try{ S = upgrade(JSON.parse(localStorage.getItem(KEY))); }catch(e){ S = defaults(); }
 if(S.tab==='import') S.tab = 'lineup';
-function padBoxes(){ S.teams.forEach(t=>t.players.forEach(p=>p.abs.forEach(a=>['b','s'].forEach(k=>{
+// At-bats imported from paper charts before they were tagged (c.imp) look like app at-bats.
+// An import builds a whole batch of at-bats in the same instant; in the app you add them one at a time.
+// So any burst of 3+ at-bats created within 1.5 seconds of each other is marked as from paper.
+function markPaperImports(t){
+  const all = [];
+  t.players.forEach(p=>p.abs.forEach(a=>{ if(a.ts) all.push(a); }));
+  all.sort((x,y)=>x.ts-y.ts);
+  let run = [];
+  const flush = () => { if(run.length >= 3) run.forEach(a=>{ a.imp = true; }); run = []; };
+  all.forEach(a=>{ if(run.length && a.ts - run[run.length-1].ts > 1500) flush(); run.push(a); });
+  flush();
+}
+function padBoxes(){ S.teams.forEach(markPaperImports);
+ S.teams.forEach(t=>t.players.forEach(p=>p.abs.forEach(a=>['b','s'].forEach(k=>{
   a[k] = Array.from({length:Math.max(BOXES,a[k].length)},(_,i)=>a[k][i]||null); })))); }
 padBoxes();
 function T(){
@@ -745,7 +759,7 @@ function scoutBox(p){
     <div class="scrow tally1 sc-fp"><span class="sclab">1st pitch</span>
       <span class="tl">Swing <b>${fp.sw}</b></span><span class="tl">Take <b>${fp.tk}</b></span>
       <span class="tl muted">${fp.sw+fp.tk ? `${Math.round(100*fp.sw/(fp.sw+fp.tk))}% swing` : ''}</span>
-      <span class="tl smr" title="Misses out of all swings, from at-bats charted in the app">Swing &amp; miss <b>${sm.swings ? sm.pct+'%' : '–'}</b>${sm.swings?`<small>${sm.misses}/${sm.swings}</small>`:''}${t2.swings?`<span class="t2" title="Swing and miss rate with two strikes">2 strikes <b>${t2.missPct}%</b><small>${t2.misses}/${t2.swings}</small></span>`:''}</span>
+      <span class="tl smr" title="Misses out of all swings, from at-bats charted in the app">Swing &amp; miss <b>${sm.swings ? sm.pct+'%' : '–'}</b>${sm.swings?`<small>${sm.misses}/${sm.swings}</small>`:''}${t2.swings?`<span class="t2" title="Swing and miss rate with two strikes">2 strikes <b>${t2.missPct}%</b><small>${t2.misses}/${t2.swings}</small></span>`:''}<span class="smnote">App at-bats only</span></span>
       ${fp.unk?`<span class="unk">${fp.unk} need${fp.unk===1?'s':''} a 1st-pitch answer below</span>`:''}</div>
     <div class="scrow bunts sc-bunt">${cnt('sacN','Sac')}${cnt('dragN','Drag')}</div>
     ${countRow(p,'steals','Steals','Steal','sc-st')}
@@ -810,7 +824,7 @@ function battingLine(p){
 }
 function swingMiss(p){
   let swings = 0, misses = 0, abs = 0; const byPitch = [0,0,0,0,0], swingsBy = [0,0,0,0,0];
-  // every at-bat charted in the app counts (photo imports are left out: their pitch order isn't known)
+  // only at-bats charted in the app count. Paper imports are left out (a circle there means swung at, not missed).
   p.abs.forEach(a=>{
     if(a.imp || a.noSeq) return;
     const ps = [...a.b, ...a.s].filter(Boolean);
@@ -1052,7 +1066,7 @@ function renderLineup(){
         <button class="ghost" id="goImport">📷 Import from photos</button>
         <button class="ghost danger" data-delteam="${T().id}">Delete this team</button></div>
       <label class="lbl">Batting order</label>
-      <p class="hint" style="margin:0 0 6px">${sorted?`Sorted by ${mode==='name'?`last name, ${dir>0?'A to Z':'Z to A'}`:`number, ${dir>0?'low to high':'high to low'}`}. The gray number on the left is still each hitter's spot in the order. <button class="linkbtn" data-lusort="order">Back to batting order</button> to drag hitters around.`:'Drag the handle by the number to move a hitter up or down. Tap <b>Name</b> or <b>#</b> to sort.'}</p>
+      <p class="hint" style="margin:0 0 6px">${sorted?`Sorted by ${mode==='name'?`last name, ${dir>0?'A to Z':'Z to A'}`:`number, ${dir>0?'low to high':'high to low'}`}. The gray number on the left is still each hitter's spot in the order. <button class="backlink" data-lusort="order">Back to batting order</button> to drag hitters around.`:'Drag the handle by the number to move a hitter up or down. Tap <b>Name</b> or <b>#</b> to sort.'}</p>
       <div class="lu headrow"><span></span><button class="sorth${mode==='name'?' on':''}" data-lusort="name" aria-label="${sortLab('name')}">Name ${arrow('name')}</button><button class="sorth${mode==='num'?' on':''}" data-lusort="num" aria-label="${sortLab('num')}"># ${arrow('num')}</button><span class="opt">Pos</span><span class="opt">Bats</span><span class="opt">Throws</span><span></span></div>
       <div class="lulist">${rows}</div>
       <div class="btnrow"><button class="primary" id="addP">Add batter</button></div>
@@ -1293,6 +1307,7 @@ function snapErr(err){
 function fromRemote(id, r, loc){
   const t = {id, name:r.name||'', players:JSON.parse(r.data||'[]'), cur:loc?loc.cur:null, curAB:loc?loc.curAB:null, updatedAt:r.updatedAt||0};
   t.players.forEach(p=>p.abs.forEach(a=>['b','s'].forEach(k=>{ a[k] = Array.from({length:Math.max(BOXES,a[k].length)},(_,i)=>a[k][i]||null); })));
+  markPaperImports(t);
   t._sig = teamSig(t);
   return t;
 }
@@ -2626,7 +2641,9 @@ async function exportPDF(btn){
         text(`${sm.pct}%`,smx,ty+2,12,bold,C.strike);
         text(`${sm.misses} of ${sm.swings} swing${sm.swings===1?'':'s'}`,smx + bold.widthOfTextAtSize(`${sm.pct}%`,12) + 6,ty+3,9.5,reg,C.muted);
       } else text(sm.abs ? 'no swings yet' : 'no at-bats charted in the app',smx,ty+3,9.5,reg,C.muted);
-      ty+=17;
+      ty+=13;
+      text('App at-bats only',tx,ty+2,7,reg,C.muted);
+      ty+=12;
       // a bold label followed by text that wraps inside the column
       const labeled = (label, body) => {
         text(label,tx,ty,9,bold);
@@ -2798,7 +2815,7 @@ async function exportScout(btn){
     });
 
     // footnote on every page
-    const foot = 'Swing & miss and 2-strike miss use at-bats charted in the app (fouls count as swings, not misses; the ball put in play is not a miss).  1st pitch swing: % of first-pitch strikes he swung at.'
+    const foot = 'Swing & miss and 2-strike miss count only at-bats entered in the app, not paper imports (fouls count as swings, not misses; the ball put in play is not a miss).  1st pitch swing: % of first-pitch strikes he swung at.'
       + (starred ? '  * Bats not set or switch hitter: Left / Center / Right instead of Pull / Mid / Oppo.' : '');
     doc.getPages().forEach(pp=>{ pg = pp;
       const words = foot.split(' '); let ln = '', fy = H - M - 14; const out = [];
